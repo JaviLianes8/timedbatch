@@ -9,3 +9,5 @@ All notable changes to this project are documented here. The format follows
 ## [0.1.0]
 
 - First release.
+- `batched_by_time`: batch an iterable by a max count and a max time window,
+  flushing when either limit is reached and at the end, with an injectable clock.
