@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 from types import TracebackType
 from typing import Generic
 
-from ._core import Buffer, Ledger, T
+from ._core import Buffer, Ledger, T, wait_event
 from ._errors import BatcherClosed, BatcherFull
 from ._limits import check_limits, check_timeout
 
@@ -93,6 +93,7 @@ class AsyncTimedBatcher(Generic[T]):
             # wait() neither cancels the task if this caller is cancelled nor re-raises
             # the task's own cancellation into a caller that was not cancelled.
             await asyncio.wait({self._task})
+        self._reap()
         self._ledger.raise_any()
 
     async def __aenter__(self) -> AsyncTimedBatcher[T]:
@@ -106,7 +107,14 @@ class AsyncTimedBatcher(Generic[T]):
     ) -> None:
         await self.aclose()
 
+    def _reap(self) -> None:
+        task = self._task
+        if task is not None and task.cancelled() and self._stopped is None:
+            # Cancelled before it ever ran, so _run could not hand anything back itself.
+            self._abandon(asyncio.CancelledError())
+
     def _check_open(self) -> None:
+        self._reap()
         self._ledger.raise_any()
         if self._stopped is not None:
             raise BatcherClosed("the flush task stopped") from self._stopped
@@ -137,17 +145,20 @@ class AsyncTimedBatcher(Generic[T]):
             left = None if deadline is None else deadline - loop.time()
             if left is not None and left <= 0:
                 raise error("timed out waiting for the flush task")
-            await _wait_event(self._progress, left)
+            await wait_event(self._progress, left)
 
     async def _run(self) -> None:
         try:
             await self._loop()
         except BaseException as error:
-            self._stopped, self._closed = error, True
-            while (batch := self._buffer.take(True)) is not None:
-                self._ledger.record(error, batch)
-                self._finish(batch)
+            self._abandon(error)
             raise
+
+    def _abandon(self, error: BaseException) -> None:
+        self._stopped, self._closed = error, True
+        while (batch := self._buffer.take(True)) is not None:
+            self._ledger.record(error, batch)
+            self._finish(batch)
 
     async def _loop(self) -> None:
         while True:
@@ -156,7 +167,7 @@ class AsyncTimedBatcher(Generic[T]):
                 if self._closed:
                     return
                 self._wake.clear()
-                await _wait_event(self._wake, self._buffer.remaining())
+                await wait_event(self._wake, self._buffer.remaining())
                 continue
             try:
                 await self._sink(list(batch))
@@ -187,13 +198,3 @@ class AsyncTimedBatcher(Generic[T]):
         # Waiters hold the old event; swapping in a fresh one wakes them all exactly once.
         self._progress.set()
         self._progress = asyncio.Event()
-
-
-async def _wait_event(event: asyncio.Event, timeout: float | None) -> None:
-    # asyncio.wait instead of wait_for: on 3.10 and 3.11 wait_for can swallow a
-    # cancellation that arrives as the event fires.
-    waiter = asyncio.ensure_future(event.wait())
-    try:
-        await asyncio.wait({waiter}, timeout=timeout)
-    finally:
-        waiter.cancel()

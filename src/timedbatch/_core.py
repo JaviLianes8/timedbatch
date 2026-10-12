@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import math
 from collections.abc import Callable
@@ -105,3 +106,14 @@ def _plain(outcome: object) -> None:
         if inspect.iscoroutine(outcome):
             outcome.close()
         raise TypeError("the flush function returned an awaitable; use AsyncTimedBatcher")
+
+
+async def wait_event(event: asyncio.Event, timeout: float | None) -> None:
+    """Wait for ``event`` at most ``timeout`` seconds, without raising on timeout."""
+    # asyncio.wait instead of wait_for: on 3.10 and 3.11 wait_for can swallow a
+    # cancellation that arrives as the event fires.
+    waiter = asyncio.ensure_future(event.wait())
+    try:
+        await asyncio.wait({waiter}, timeout=timeout)
+    finally:
+        waiter.cancel()
