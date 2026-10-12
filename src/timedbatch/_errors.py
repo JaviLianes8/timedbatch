@@ -15,7 +15,8 @@ class FlushError(Exception):
     def __init__(self, batches: list[list[Any]], errors: list[BaseException]) -> None:
         count = sum(len(batch) for batch in batches)
         noun = "batch" if len(batches) == 1 else "batches"
-        super().__init__(f"{len(batches)} {noun} ({count} items) failed to flush: {errors[0]!r}")
+        items = "item" if count == 1 else "items"
+        super().__init__(f"{len(batches)} {noun} ({count} {items}) failed to flush: {errors[0]!r}")
         self.batches = batches
         self.errors = errors
         self.__cause__ = errors[0]

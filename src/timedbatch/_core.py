@@ -40,10 +40,12 @@ class Buffer(Generic[T]):
         """Remove and return the next batch if it is due (or ``force``), else ``None``."""
         if not self._items:
             return None
-        if not force and len(self._items) < self.max_items:
-            left = self.remaining()
-            if left is None or left > 0:
-                return None
+        if (
+            not force
+            and len(self._items) < self.max_items
+            and self.clock() - self._stamps[0] < self.max_seconds
+        ):
+            return None
         batch = self._items[: self.max_items]
         del self._items[: self.max_items]
         del self._stamps[: self.max_items]

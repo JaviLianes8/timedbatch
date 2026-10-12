@@ -3,18 +3,9 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+from conftest import FakeClock
 
 from timedbatch import batched_by_time
-
-
-class FakeClock:
-    """A clock whose value is set by the test, so no real time passes."""
-
-    def __init__(self) -> None:
-        self.now = 0.0
-
-    def __call__(self) -> float:
-        return self.now
 
 
 def timed_source(clock: FakeClock, steps: list[tuple[object, float]]) -> Iterator[object]:
@@ -94,3 +85,47 @@ def test_rejects_a_non_positive_count() -> None:
 def test_rejects_a_non_positive_window() -> None:
     with pytest.raises(ValueError):
         list(batched_by_time([1], max_items=1, max_seconds=0.0))
+
+
+def test_items_read_before_a_source_error_are_yielded_first() -> None:
+    def source() -> Iterator[int]:
+        yield 1
+        yield 2
+        raise OSError("disk gone")
+
+    batches = batched_by_time(source(), max_items=10, max_seconds=100.0)
+
+    assert next(batches) == [1, 2]
+    with pytest.raises(OSError, match="disk gone"):
+        next(batches)
+
+
+def test_a_source_error_with_nothing_buffered_is_raised_directly() -> None:
+    def source() -> Iterator[int]:
+        yield 1
+        raise OSError("late")
+
+    batches = batched_by_time(source(), max_items=1, max_seconds=100.0)
+
+    assert next(batches) == [1]
+    with pytest.raises(OSError, match="late"):
+        next(batches)
+
+
+def test_limits_are_checked_when_called_not_when_iterated() -> None:
+    with pytest.raises(ValueError):
+        batched_by_time([1], max_items=0, max_seconds=1.0)
+
+
+def test_items_are_never_read_ahead_of_the_consumer() -> None:
+    reads: list[int] = []
+
+    def source() -> Iterator[int]:
+        for value in range(10):
+            reads.append(value)
+            yield value
+
+    batches = batched_by_time(source(), max_items=3, max_seconds=100.0)
+
+    assert next(batches) == [0, 1, 2]
+    assert reads == [0, 1, 2]
