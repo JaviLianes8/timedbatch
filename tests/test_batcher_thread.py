@@ -181,13 +181,15 @@ def test_flush_times_out_on_a_stuck_sink() -> None:
     batcher.close(timeout=WAIT)
 
 
-def test_close_unregisters_the_exit_hook(monkeypatch: pytest.MonkeyPatch) -> None:
-    registered: list[object] = []
-    monkeypatch.setattr("atexit.register", registered.append)
-    monkeypatch.setattr("atexit.unregister", registered.remove)
+def test_a_window_beyond_the_thread_timeout_limit_keeps_the_thread_alive() -> None:
+    out: list[list[int]] = []
+    batcher: TimedBatcher[int] = TimedBatcher(
+        out.append, max_items=10, max_seconds=threading.TIMEOUT_MAX * 10, flush_at_exit=False
+    )
+    batcher.add(1)
+    time.sleep(0.1)
 
-    batcher: TimedBatcher[int] = TimedBatcher(print, max_items=1, max_seconds=1.0)
-    assert len(registered) == 1
-    batcher.close()
-
-    assert registered == []
+    assert batcher._thread is not None and batcher._thread.is_alive()
+    batcher.flush(timeout=WAIT)
+    assert out == [[1]]
+    batcher.close(timeout=WAIT)

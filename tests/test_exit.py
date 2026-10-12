@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from timedbatch import TimedBatcher
+
 SRC = Path(__file__).resolve().parents[1] / "src"
 
 PROGRAM = """
@@ -76,3 +78,15 @@ batcher.add("kept")
     )
 
     assert "FlushError: 1 batch (1 item) failed to flush: ValueError('sink down')" in result.stderr
+
+
+def test_close_unregisters_the_exit_hook(monkeypatch: pytest.MonkeyPatch) -> None:
+    registered: list[object] = []
+    monkeypatch.setattr("atexit.register", registered.append)
+    monkeypatch.setattr("atexit.unregister", registered.remove)
+
+    batcher: TimedBatcher[int] = TimedBatcher(print, max_items=1, max_seconds=1.0)
+    assert len(registered) == 1
+    batcher.close()
+
+    assert registered == []

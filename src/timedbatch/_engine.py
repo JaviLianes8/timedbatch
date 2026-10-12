@@ -55,7 +55,7 @@ class Engine(Generic[T]):
             left = None if deadline is None else deadline - time.monotonic()
             if left is not None and left <= 0:
                 raise BatcherFull(f"no room under max_pending={limit} after {timeout} seconds")
-            self._progress.wait(left)
+            self._progress.wait(_bounded(left))
             if self._closed:
                 raise BatcherClosed("the batcher closed while add() was waiting")
 
@@ -66,7 +66,7 @@ class Engine(Generic[T]):
                 left = None if deadline is None else deadline - time.monotonic()
                 if left is not None and left <= 0:
                     raise TimeoutError("flush() timed out before every item was delivered")
-                self._progress.wait(left)
+                self._progress.wait(_bounded(left))
 
     def _next_batch(self) -> list[T] | None:
         batch = self._buffer.take(self._closed or self._wanted > self._done)
@@ -102,10 +102,15 @@ class Engine(Generic[T]):
                 if batch is None:
                     if self._closed:
                         return
-                    self._wake.wait(self._buffer.remaining())
+                    self._wake.wait(_bounded(self._buffer.remaining()))
                     continue
                 self._lock.release()
                 try:
                     self._deliver(batch)
                 finally:
                     self._lock.acquire()
+
+
+def _bounded(seconds: float | None) -> float | None:
+    # Condition.wait raises OverflowError past TIMEOUT_MAX, which would kill the thread.
+    return None if seconds is None else min(seconds, threading.TIMEOUT_MAX)

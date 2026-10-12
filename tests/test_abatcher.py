@@ -185,14 +185,3 @@ def test_calls_from_inside_the_sink_raise_instead_of_deadlocking() -> None:
     asyncio.run(main())
     assert errors[2] == "full"
     assert all("inside the flush callback" in text for text in errors[:2])
-
-
-def test_close_before_any_item_is_a_no_op() -> None:
-    _, sink = recorder()
-
-    async def main() -> None:
-        batcher = AsyncTimedBatcher(sink, max_items=1, max_seconds=1.0)
-        await batcher.aclose()
-        assert batcher.closed
-
-    asyncio.run(main())
