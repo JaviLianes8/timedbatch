@@ -54,7 +54,7 @@ class Engine(Generic[T]):
         while self._accepted - self._done >= limit:
             left = None if deadline is None else deadline - time.monotonic()
             if left is not None and left <= 0:
-                raise BatcherFull(f"no room under max_pending={limit} after {timeout} seconds")
+                raise BatcherFull(f"no room under max_pending={limit} within {timeout} seconds")
             self._progress.wait(_bounded(left))
             if self._closed:
                 raise BatcherClosed("the batcher closed while add() was waiting")

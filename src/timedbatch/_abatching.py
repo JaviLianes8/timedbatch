@@ -29,7 +29,9 @@ def abatched_by_time(
     the source raises, the items already read are yielded first. ``clock`` must tick in
     seconds; real waiting uses the event loop. Close it early with ``aclose()`` (or
     :func:`contextlib.aclosing`): the read in flight is cancelled, and an item it had
-    already taken from the source is dropped.
+    already taken from the source is dropped, together with the partial batch. Each read
+    of the source runs in its own task, so context variables set by the source do not
+    carry over from one item to the next.
     """
     items, seconds, _ = check_limits(max_items, max_seconds)
     if not isinstance(aiterable, AsyncIterable):
@@ -46,7 +48,15 @@ async def _abatches(
     try:
         while True:
             if pending is None:
-                pending = asyncio.ensure_future(source.__anext__())
+                try:
+                    step = source.__anext__()
+                except StopAsyncIteration:
+                    break
+                except Exception:
+                    if batch:
+                        yield batch
+                    raise
+                pending = asyncio.ensure_future(step)
             timeout = None
             if batch and not math.isinf(max_seconds):
                 timeout = max(0.0, started + max_seconds - clock())

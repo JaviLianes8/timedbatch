@@ -8,10 +8,10 @@ import time
 from collections.abc import Callable
 from types import TracebackType
 
-from ._core import Buffer, T
+from ._core import Buffer, T, is_async
 from ._engine import Engine
 from ._errors import BatcherClosed
-from ._limits import check_limits
+from ._limits import check_limits, check_timeout
 
 
 class TimedBatcher(Engine[T]):
@@ -42,6 +42,8 @@ class TimedBatcher(Engine[T]):
     ) -> None:
         if not callable(flush):
             raise TypeError("flush must be callable")
+        if is_async(flush) or is_async(on_error):
+            raise TypeError("flush and on_error must be plain functions; see AsyncTimedBatcher")
         items, seconds, pending = check_limits(max_items, max_seconds, max_pending)
         super().__init__(flush, on_error, Buffer(items, seconds, clock), pending)
         self._at_exit = flush_at_exit
@@ -69,10 +71,11 @@ class TimedBatcher(Engine[T]):
         Every exception it raises means the item was not accepted: :class:`BatcherClosed`,
         :class:`BatcherFull`, or :class:`FlushError` for earlier failures not reported yet.
         """
+        timeout = check_timeout(timeout)
         with self._lock:
+            self._ledger.raise_any()
             if self._closed:
                 raise BatcherClosed("the batcher is closed")
-            self._ledger.raise_any()
             inside = self._delivering == threading.get_ident()
             self._wait_for_room(timeout, inside)
             self._buffer.append(item)
@@ -97,7 +100,11 @@ class TimedBatcher(Engine[T]):
         self._raise_failures()
 
     def flush(self, timeout: float | None = None) -> None:
-        """Deliver every item accepted so far; raise ``TimeoutError`` if it takes longer."""
+        """Deliver every item accepted so far; raise ``TimeoutError`` if it takes longer.
+
+        Without a background thread the caller delivers, so ``timeout`` has no effect.
+        """
+        timeout = check_timeout(timeout)
         self._refuse_inside("flush")
         with self._lock:
             target = self._wanted = max(self._wanted, self._accepted)
@@ -109,8 +116,12 @@ class TimedBatcher(Engine[T]):
         self._raise_failures()
 
     def close(self, timeout: float | None = None) -> None:
-        """Stop accepting items, deliver the rest and stop the thread. Idempotent."""
-        self._shutdown(timeout, unregister=True)
+        """Stop accepting items, deliver the rest and stop the thread. Idempotent.
+
+        If this times out or is interrupted, the exit hook stays registered, so what is
+        left is still delivered when the interpreter exits.
+        """
+        self._shutdown(check_timeout(timeout), unregister=True)
 
     def __enter__(self) -> TimedBatcher[T]:
         return self
@@ -130,16 +141,16 @@ class TimedBatcher(Engine[T]):
     def _shutdown(self, timeout: float | None, unregister: bool) -> None:
         self._refuse_inside("close")
         with self._lock:
-            first = not self._closed
             self._closed = True
             self._wake.notify()
             self._progress.notify_all()
-        if first and unregister and self._at_exit:
-            atexit.unregister(self._close_at_exit)
         if self._thread is None:
             self._drain()
         else:
             self._thread.join(timeout)
             if self._thread.is_alive():
                 raise TimeoutError("the flush thread is still delivering")
+        # Only now: an interrupted or timed out close must leave the exit flush in place.
+        if unregister and self._at_exit:
+            atexit.unregister(self._close_at_exit)
         self._raise_failures()

@@ -13,6 +13,8 @@ class FlushError(Exception):
     """
 
     def __init__(self, batches: list[list[Any]], errors: list[BaseException]) -> None:
+        if not errors or len(batches) != len(errors):
+            raise ValueError("FlushError needs one error per failed batch, and at least one")
         count = sum(len(batch) for batch in batches)
         noun = "batch" if len(batches) == 1 else "batches"
         items = "item" if count == 1 else "items"

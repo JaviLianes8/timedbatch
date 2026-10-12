@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import math
 from collections.abc import Callable
 from typing import Generic, TypeVar
@@ -79,14 +80,28 @@ def call_sink(
     try:
         # The sink gets its own list, so a sink that clears it cannot empty the copy we
         # hand back on failure.
-        sink(list(batch))
+        _plain(sink(list(batch)))
     except Exception as error:
         if on_error is None:
             return error
         try:
-            on_error(error, list(batch))
+            _plain(on_error(error, list(batch)))
         except BaseException as handler_error:
             return handler_error
     except BaseException as error:
         return error
     return None
+
+
+def is_async(function: object) -> bool:
+    """Whether calling ``function`` returns a coroutine (functions and callable objects)."""
+    call = type(function).__call__
+    return inspect.iscoroutinefunction(function) or inspect.iscoroutinefunction(call)
+
+
+def _plain(outcome: object) -> None:
+    # A coroutine that is never awaited does nothing: treat it as a failed delivery.
+    if inspect.isawaitable(outcome):
+        if inspect.iscoroutine(outcome):
+            outcome.close()
+        raise TypeError("the flush function returned an awaitable; use AsyncTimedBatcher")
