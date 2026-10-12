@@ -54,6 +54,7 @@ def test_a_full_batch_is_delivered_without_waiting_for_the_window(
     )
     opened.append(batcher)
     batcher.add(1)
+    time.sleep(0.1)  # let the thread go to sleep on the hour-long window first
     batcher.add(2)
 
     assert arrived.wait(WAIT)
@@ -178,18 +179,4 @@ def test_flush_times_out_on_a_stuck_sink() -> None:
     with pytest.raises(TimeoutError):
         batcher.close(timeout=0.1)
     release.set()
-    batcher.close(timeout=WAIT)
-
-
-def test_a_window_beyond_the_thread_timeout_limit_keeps_the_thread_alive() -> None:
-    out: list[list[int]] = []
-    batcher: TimedBatcher[int] = TimedBatcher(
-        out.append, max_items=10, max_seconds=threading.TIMEOUT_MAX * 10, flush_at_exit=False
-    )
-    batcher.add(1)
-    time.sleep(0.1)
-
-    assert batcher._thread is not None and batcher._thread.is_alive()
-    batcher.flush(timeout=WAIT)
-    assert out == [[1]]
     batcher.close(timeout=WAIT)

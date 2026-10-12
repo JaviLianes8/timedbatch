@@ -78,6 +78,7 @@ def test_threads_never_lose_duplicate_or_reorder(background: bool) -> None:
             while True:
                 try:
                     batcher.add((index, item))
+                    assert batcher.pending <= MAX_PENDING
                     break
                 except FlushError as exc:
                     with audit.lock:
@@ -119,6 +120,7 @@ def test_tasks_never_lose_duplicate_or_reorder() -> None:
                 while True:
                     try:
                         await batcher.add((index, item))
+                        assert batcher.pending <= MAX_PENDING
                         break
                     except FlushError as exc:
                         handed_back.extend(x for batch in exc.batches for x in batch)

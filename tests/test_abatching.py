@@ -117,3 +117,42 @@ def test_an_infinite_window_never_flushes_on_age() -> None:
 def test_rejects_a_non_async_iterable() -> None:
     with pytest.raises(TypeError):
         abatched_by_time([1, 2], 2, 1.0)  # type: ignore[arg-type]
+
+
+class _Steps:
+    """An async iterator whose __anext__ is a plain method that may raise when called."""
+
+    def __init__(self, end: BaseException) -> None:
+        self.values = [1, 2]
+        self.end = end
+
+    def __aiter__(self) -> _Steps:
+        return self
+
+    def __anext__(self) -> asyncio.Future[int]:
+        if not self.values:
+            raise self.end
+        future: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+        future.set_result(self.values.pop(0))
+        return future
+
+
+def test_an_anext_that_ends_the_source_when_called_keeps_the_batch() -> None:
+    batches = asyncio.run(collect(abatched_by_time(_Steps(StopAsyncIteration()), 10, 60.0)))
+
+    assert batches == [[1, 2]]
+
+
+def test_an_anext_that_raises_when_called_yields_the_batch_first() -> None:
+    async def main() -> tuple[list[int], BaseException | None]:
+        batches = abatched_by_time(_Steps(OSError("gone")), 10, 60.0)
+        first = await batches.__anext__()
+        try:
+            await batches.__anext__()
+        except OSError as exc:
+            return first, exc
+        return first, None
+
+    first, error = asyncio.run(main())
+    assert first == [1, 2]
+    assert isinstance(error, OSError)

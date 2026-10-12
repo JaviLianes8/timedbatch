@@ -90,3 +90,30 @@ def test_close_unregisters_the_exit_hook(monkeypatch: pytest.MonkeyPatch) -> Non
     batcher.close()
 
     assert registered == []
+
+
+def test_a_timed_out_close_still_flushes_at_exit() -> None:
+    code = f"""
+import sys, time
+sys.path.insert(0, {str(SRC)!r})
+from timedbatch import TimedBatcher
+
+def sink(batch):
+    time.sleep(0.5)
+    print("batch", batch, flush=True)
+
+batcher = TimedBatcher(sink, max_items=2, max_seconds=3600.0)
+for value in range(4):
+    batcher.add(value)
+try:
+    batcher.close(timeout=0.05)
+except TimeoutError:
+    print("timed out", flush=True)
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=60, check=False
+    )
+
+    assert result.stdout.splitlines() == ["timed out", "batch [0, 1]", "batch [2, 3]"], (
+        result.stderr
+    )
