@@ -75,16 +75,20 @@ What it promises:
 - **Order and no overlap.** One background thread calls your function, one batch at a
   time, in the order the items were accepted. A batch never exceeds `max_items`.
 - **Nothing lost, nothing twice.** Every accepted item is delivered once or handed back
-  once. When `add` raises, the item was not accepted.
+  once. When `add` raises, the item was not accepted (one exception: with
+  `background=False`, an interrupt raised inside your function passes through `add`,
+  and its batch comes back in the next `FlushError`).
 - **Failures.** Give `on_error(exc, batch)` to decide what to do with a failed batch.
   Without it, failed batches are kept and raised as a `FlushError` (with `.batches` and
   `.errors`) by the next `add`, `poll`, `flush` or `close`.
 - **Back-pressure.** `max_pending` caps items accepted but not yet delivered. `add` waits
   for room, or raises `BatcherFull` (a `TimeoutError`) after `timeout` seconds.
 - **Shutdown.** `close()` (or leaving the `with` block) delivers the rest and stops the
-  thread; later calls to `add` raise `BatcherClosed`. A batcher you forget to close is closed when the interpreter exits normally,
-  through `sys.exit` or an uncaught exception (`flush_at_exit=True`); nothing can flush
-  after `os._exit` or a kill signal.
+  thread; later calls to `add` raise `BatcherClosed`. A batcher you forget to close, or
+  whose `close(timeout=...)` timed out, is closed when the interpreter exits normally,
+  through `sys.exit` or an uncaught exception (`flush_at_exit=True`). That exit flush
+  waits for your function, so give it its own timeouts. Nothing can flush after
+  `os._exit`, a kill signal, or in a child created by `os.fork` (it has no thread).
 - **No deadlocks from inside.** Calling `flush`, `poll` or `close` from the flush
   function raises `RuntimeError`, and an `add` there that would wait raises `BatcherFull`.
 
@@ -111,7 +115,8 @@ except FlushError as error:
 ### Deterministic tests
 
 `background=False` removes the thread: due batches are delivered by the caller inside
-`add` and `poll()`, so an injected clock drives every age decision.
+`add` and `poll()`, so an injected clock drives every age decision (and the `timeout`
+of `flush` and `close` has nothing to wait for).
 
 ```python
 from timedbatch import TimedBatcher
@@ -134,7 +139,9 @@ print(sent)  # [['x']]
 
 `abatched_by_time` yields a partial batch on time even while the source waits. It keeps
 the pending read across those flushes (it uses `asyncio.wait`, which does not cancel on
-timeout), so no item is lost.
+timeout), so no item is lost. Each read runs in its own task, so context variables the
+source sets do not carry from one item to the next. Closing it early drops the partial
+batch and the read in flight.
 
 ```python
 import asyncio
@@ -159,7 +166,9 @@ asyncio.run(main())
 
 `AsyncTimedBatcher` is `TimedBatcher` for one event loop, with an async flush function
 (`on_error` may be sync or async). Close it with `async with` or `await aclose()`:
-coroutines cannot run at interpreter exit.
+coroutines cannot run at interpreter exit. If its flush task is cancelled, for example
+because the loop ended first, the batcher closes and the next call hands back what it
+held. `TimedBatcher` refuses an `async def` flush function instead of dropping batches.
 
 ```python
 import asyncio
@@ -189,7 +198,7 @@ almost always wants both bounds: cap the size so a batch never grows without lim
 cap the latency so a slow stream still drains on schedule. The hard part is the rest:
 flushing an idle buffer, not losing items when the sink fails or the program exits,
 slowing producers down when the sink falls behind. `timedbatch` does that once, with tests
-that run thousands of random timelines against a reference model and hammer the batchers
+that run hundreds of random timelines against a reference model and hammer the batchers
 from many threads and tasks.
 
 ## License

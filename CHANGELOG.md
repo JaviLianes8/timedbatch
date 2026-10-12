@@ -23,8 +23,9 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - `batched_by_time` checks its limits when called instead of on the first step, rejects
-  `bool` and non-integer counts and a NaN window, and accepts `math.inf` for count-only
-  batching.
+  `bool`, floats and other non-integer counts and a NaN window, and accepts `math.inf`
+  for count-only batching. Integer types such as NumPy's (anything with `__index__`)
+  and `Decimal` windows keep working.
 - When the source raises, `batched_by_time` yields the items already read before the
   exception.
 
