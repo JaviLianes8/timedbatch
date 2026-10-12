@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import math
 
 import pytest
@@ -124,5 +125,68 @@ def test_bad_timeouts_are_rejected(bad: object) -> None:
         with pytest.raises((TypeError, ValueError)):
             await batcher.flush(timeout=bad)  # type: ignore[arg-type]
         assert batcher.pending == 0
+
+    asyncio.run(main())
+
+
+def test_aclose_hands_back_instead_of_raising_when_the_task_is_cancelled() -> None:
+    async def main() -> None:
+        gate = asyncio.Event()
+
+        async def sink(batch: list[int]) -> None:
+            await gate.wait()
+
+        batcher = AsyncTimedBatcher(sink, max_items=1, max_seconds=60.0)
+        await batcher.add(1)
+        await batcher.add(2)
+        closing = asyncio.ensure_future(batcher.aclose())
+        await asyncio.sleep(0.05)
+        assert batcher._task is not None
+        batcher._task.cancel()
+        with pytest.raises(FlushError) as caught:
+            await closing
+        assert caught.value.batches == [[1], [2]]
+        assert batcher.pending == 0
+
+    asyncio.run(main())
+
+
+def test_an_async_on_error_that_raises_is_reported_with_the_batch() -> None:
+    async def sink(batch: list[int]) -> None:
+        raise ValueError("sink")
+
+    async def handler(exc: Exception, batch: list[int]) -> None:
+        raise RuntimeError("handler")
+
+    async def main() -> None:
+        batcher = AsyncTimedBatcher(sink, max_items=1, max_seconds=60.0, on_error=handler)
+        await batcher.add(1)
+        with pytest.raises(FlushError) as caught:
+            await batcher.aclose()
+        assert caught.value.batches == [[1]]
+        assert repr(caught.value.errors[0]) == "RuntimeError('handler')"
+
+    asyncio.run(main())
+
+
+class _Halt(BaseException):
+    pass
+
+
+def test_a_base_exception_from_the_sink_closes_and_hands_back_the_rest() -> None:
+    async def sink(batch: list[int]) -> None:
+        raise _Halt
+
+    async def main() -> None:
+        batcher = AsyncTimedBatcher(sink, max_items=2, max_seconds=60.0)
+        for value in range(5):
+            with contextlib.suppress(_Halt):
+                await batcher.add(value)
+        await asyncio.sleep(0.05)
+        with pytest.raises(FlushError) as caught:
+            await batcher.add(9)
+        assert [x for batch in caught.value.batches for x in batch] == [0, 1, 2, 3, 4]
+        with pytest.raises(BatcherClosed):
+            await batcher.add(9)
 
     asyncio.run(main())

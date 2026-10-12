@@ -108,10 +108,18 @@ class AsyncTimedBatcher(Generic[T]):
         await self.aclose()
 
     def _reap(self) -> None:
+        # A task that stopped abnormally (cancelled, even before it ever ran, or killed
+        # by a BaseException from the sink) closes the batcher and hands back its items.
         task = self._task
-        if task is not None and task.cancelled() and self._stopped is None:
-            # Cancelled before it ever ran, so _run could not hand anything back itself.
-            self._abandon(asyncio.CancelledError())
+        if task is None or not task.done() or self._stopped is not None:
+            return
+        error = asyncio.CancelledError() if task.cancelled() else task.exception()
+        if error is None:
+            return
+        self._stopped, self._closed = error, True
+        while (batch := self._buffer.take(True)) is not None:
+            self._ledger.record(error, batch)
+            self._finish(batch)
 
     def _check_open(self) -> None:
         self._reap()
@@ -124,7 +132,7 @@ class AsyncTimedBatcher(Generic[T]):
     def _start(self) -> None:
         if self._task is None:
             self._wake, self._progress = asyncio.Event(), asyncio.Event()
-            self._task = asyncio.get_running_loop().create_task(self._run())
+            self._task = asyncio.get_running_loop().create_task(self._loop())
 
     def _inside(self) -> bool:
         return self._task is not None and asyncio.current_task() is self._task
@@ -146,19 +154,6 @@ class AsyncTimedBatcher(Generic[T]):
             if left is not None and left <= 0:
                 raise error("timed out waiting for the flush task")
             await wait_event(self._progress, left)
-
-    async def _run(self) -> None:
-        try:
-            await self._loop()
-        except BaseException as error:
-            self._abandon(error)
-            raise
-
-    def _abandon(self, error: BaseException) -> None:
-        self._stopped, self._closed = error, True
-        while (batch := self._buffer.take(True)) is not None:
-            self._ledger.record(error, batch)
-            self._finish(batch)
 
     async def _loop(self) -> None:
         while True:

@@ -33,6 +33,7 @@ def test_the_idle_deadline_comes_from_the_oldest_item() -> None:
     batcher.add(1)
     time.sleep(0.6)
     batcher.add(2)  # must not push the deadline to 1.6 s
+    batcher.poll()  # wakes the thread, which recomputes its deadline
 
     assert arrived.wait(WAIT)
     assert time.monotonic() - started < 1.45
