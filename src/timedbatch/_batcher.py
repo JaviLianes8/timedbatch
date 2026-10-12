@@ -66,8 +66,8 @@ class TimedBatcher(Engine[T]):
     def add(self, item: T, timeout: float | None = None) -> None:
         """Accept ``item``, waiting up to ``timeout`` seconds for room under ``max_pending``.
 
-        Raises :class:`BatcherClosed` or :class:`BatcherFull` without accepting the item,
-        and :class:`FlushError` for failures not reported yet.
+        Every exception it raises means the item was not accepted: :class:`BatcherClosed`,
+        :class:`BatcherFull`, or :class:`FlushError` for earlier failures not reported yet.
         """
         with self._lock:
             if self._closed:
@@ -82,8 +82,9 @@ class TimedBatcher(Engine[T]):
                     self._wake.notify()
                 return
         if not inside:
+            # A batch failing here is reported by the next call, so that a FlushError from
+            # add() always means the item was not accepted.
             self._drain()
-            self._raise_failures()
 
     def poll(self) -> None:
         """Deliver every batch that is due now and report failures not reported yet."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import math
 import time
-from collections.abc import AsyncIterable, AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator, Callable
 from typing import Any, TypeVar
 
 from ._limits import check_limits
@@ -19,7 +19,7 @@ def abatched_by_time(
     max_seconds: float,
     *,
     clock: Callable[[], float] = time.monotonic,
-) -> AsyncIterator[list[_T]]:
+) -> AsyncGenerator[list[_T], None]:
     """Yield batches from an async iterable, flushing on ``max_items`` or ``max_seconds``.
 
     Unlike :func:`batched_by_time`, the age limit fires while the source is idle: a
@@ -27,15 +27,19 @@ def abatched_by_time(
     item arrives. The pending read of the source is kept across those flushes, never
     cancelled, so no item is lost; it is cancelled only when the iterator is closed. If
     the source raises, the items already read are yielded first. ``clock`` must tick in
-    seconds; real waiting uses the event loop.
+    seconds; real waiting uses the event loop. Close it early with ``aclose()`` (or
+    :func:`contextlib.aclosing`): the read in flight is cancelled, and an item it had
+    already taken from the source is dropped.
     """
     items, seconds, _ = check_limits(max_items, max_seconds)
+    if not isinstance(aiterable, AsyncIterable):
+        raise TypeError(f"expected an async iterable, not {type(aiterable).__name__}")
     return _abatches(aiterable.__aiter__(), items, seconds, clock)
 
 
 async def _abatches(
     source: AsyncIterator[_T], max_items: int, max_seconds: float, clock: Callable[[], float]
-) -> AsyncIterator[list[_T]]:
+) -> AsyncGenerator[list[_T], None]:
     batch: list[_T] = []
     started = 0.0
     pending: asyncio.Future[Any] | None = None

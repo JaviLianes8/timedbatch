@@ -134,11 +134,13 @@ def test_without_on_error_the_failed_batch_comes_back_in_a_flush_error() -> None
 
     batcher = make(sink, max_items=2)
     batcher.add(1)
+    batcher.add(2)  # accepted; the failure of its batch is reported by the next call
     with pytest.raises(FlushError) as caught:
-        batcher.add(2)
+        batcher.add(3)
 
     assert caught.value.batches == [[1, 2]]
     assert isinstance(caught.value.__cause__, ValueError)
+    assert batcher.pending == 0  # 3 was not accepted
     batcher.add(3)  # reported once, then the batcher carries on
     assert batcher.pending == 1
 
@@ -151,8 +153,9 @@ def test_a_failing_on_error_is_reported_with_the_batch() -> None:
         raise RuntimeError("handler")
 
     batcher = make(sink, max_items=1, on_error=handler)
+    batcher.add(1)
     with pytest.raises(FlushError) as caught:
-        batcher.add(1)
+        batcher.poll()
 
     assert caught.value.batches == [[1]]
     assert repr(caught.value.errors[0]) == "RuntimeError('handler')"
