@@ -8,8 +8,8 @@ Progress:
 - [x] `abatched_by_time` and `AsyncTimedBatcher` for asyncio
 - [x] Contracts: reference model, stress invariants, exit flush in a child process, typing, README examples, installed wheel e2e
 - [x] Docs: README, CHANGELOG, docstrings, packaging metadata
-- [ ] Gates: ruff format, ruff check, mypy --strict, pytest
-- [ ] Independent review findings fixed with regression tests
+- [x] Gates: ruff format, ruff check, mypy --strict, pytest
+- [x] Independent review findings fixed with regression tests
 - [ ] Pull request opened, guard clean
 
 ## Starting point
@@ -96,3 +96,42 @@ proven by running real child interpreters, not assumed from the text.
 
 Left out on purpose: retries and dead letter queues (policy belongs to the caller, who gets
 the failed batch back), multiprocessing, and a size limit in bytes.
+
+## Verification
+
+- Gates: `ruff format --check .`, `ruff check .`, `mypy --strict src` (also `src tests`)
+  and `pytest` exit 0 on Windows with Python 3.13 and 3.11; the wheel e2e passes with
+  `TIMEDBATCH_E2E=1`. The review ran the suite and `mypy --strict` on Python 3.10 against
+  the revision before its fixes; 3.10 was not re-run after them.
+- Mutations: 63 guards were removed one at a time on a copy of the tree (limits, the
+  buffer cap and age, per-item stamps, the sink's own list, failure reporting, the ledger,
+  every wake-up, back-pressure, refusals from inside the sink, exit hook registration
+  and its timing, the async task reaping, the async iterator's kept read, cleanup and
+  error paths). Every one made the suite fail or hang. Four survived the first pass and
+  each got a test that kills it.
+
+## Review findings fixed
+
+- The async flush task could die (a cancellation, the loop ending) while `add` kept
+  accepting items that were then lost, and `aclose` leaked the task's cancellation. A
+  stopped task now closes the batcher and hands every item back in a `FlushError`;
+  `aclose` waits without re-raising the task's cancellation.
+- `close(timeout=...)` unregistered the exit hook before it had finished, so a timeout or
+  an interrupt lost the rest at exit. The hook is now removed only after success.
+- `TimedBatcher` accepted an `async def` flush function and counted never-awaited
+  batches as delivered. It is refused, and a sink that returns an awaitable fails the
+  batch instead.
+- `abatched_by_time` lost the partial batch when a plain `__anext__` raised when called.
+- NumPy integers and `Decimal` windows, accepted by 0.1.0, were rejected; NaN or
+  non-numeric timeouts waited forever. Both fixed.
+- `wait_for` replaced by `asyncio.wait` for event waits (3.10 and 3.11 can swallow a
+  cancellation); `FlushError` validates its arguments; README and docstrings now state
+  the interrupt exception to "add raises means not accepted", the exit flush waiting for
+  the sink, `os.fork`, context variables in the async iterator, and what an early close
+  drops.
+
+## Left uncovered
+
+- The exit flush has no timeout of its own: a sink that hangs keeps the process alive.
+- A batcher used after `os.fork` has no thread in the child (documented, not handled).
+- The Python 3.10 and 3.11 cancellation race is avoided by construction, not tested.
