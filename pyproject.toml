@@ -4,18 +4,29 @@ build-backend = "hatchling.build"
 
 [project]
 name = "timedbatch"
-version = "0.1.0"
-description = "Batch items from an iterable by a max count and a max time window, flushing when either limit is hit"
+version = "0.2.0"
+description = "Batch items by a max count and a max age, for iterables, threads and asyncio, without losing items"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Javier Lianes", email = "javier@lianes8studio.com" }]
-keywords = ["batch", "batching", "chunk", "iterator", "time-window", "streaming", "flush"]
+keywords = [
+    "batch", "batching", "chunk", "iterator", "time-window", "streaming", "flush",
+    "buffer", "asyncio", "back-pressure",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Framework :: AsyncIO",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 ]
 dependencies = []
@@ -30,6 +41,9 @@ Issues = "https://github.com/JaviLianes8/timedbatch/issues"
 Changelog = "https://github.com/JaviLianes8/timedbatch/blob/main/CHANGELOG.md"
 LinkedIn = "https://www.linkedin.com/in/jlianes/"
 Funding = "https://buymeacoffee.com/jlianesglrs"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["IMPROVEMENTS-round.md"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/timedbatch"]

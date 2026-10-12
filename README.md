@@ -1,6 +1,7 @@
 # timedbatch
 
-Batch items from an iterable by a max count and a max time window, flushing when either limit is hit
+Batch items by a max count and a max age, flushing when either limit is hit. Typed, no
+dependencies, for plain iterables, for threads and for asyncio.
 
 ## Install
 
@@ -8,44 +9,188 @@ Batch items from an iterable by a max count and a max time window, flushing when
 pip install timedbatch
 ```
 
-## Usage
+## Which one to use
 
-`batched_by_time` groups an iterable into lists, emitting a batch as soon as it
-holds `max_items` items or `max_seconds` have passed since the batch started,
-whichever comes first. The leftover items are flushed when the source ends.
+| You have | Use | Flushes while idle |
+|---|---|---|
+| An iterable you loop over | `batched_by_time` | No: the age is checked when an item arrives |
+| An async iterable | `abatched_by_time` | Yes |
+| Many places calling `add(item)` from threads | `TimedBatcher` | Yes, from a background thread |
+| Many coroutines calling `await add(item)` | `AsyncTimedBatcher` | Yes, from a background task |
+
+A batch is delivered as soon as it holds `max_items` items or its oldest item is
+`max_seconds` old, whichever comes first. `max_seconds` may be `math.inf` to batch by
+count only.
+
+## Iterables
 
 ```python
 from timedbatch import batched_by_time
 
-events = read_events()  # any iterable, finite or streaming
-
-for batch in batched_by_time(events, max_items=500, max_seconds=5.0):
-    flush(batch)  # at most 500 items, at most 5 seconds of latency
-```
-
-The clock is injectable, so tests stay deterministic and never really sleep:
-
-```python
 now = 0.0
 
-def clock() -> float:
+
+def clock() -> float:  # inject a clock and tests never sleep
     return now
 
-batches = batched_by_time(source, max_items=100, max_seconds=2.0, clock=clock)
+
+def events():
+    global now
+    for moment, name in [(0.0, "a"), (0.5, "b"), (0.6, "c"), (9.0, "d"), (9.1, "e")]:
+        now = moment
+        yield name
+
+
+for batch in batched_by_time(events(), max_items=2, max_seconds=5.0, clock=clock):
+    print(batch)  # ['a', 'b']
+    # ['c', 'd']
+    # ['e']
 ```
 
-The time window is checked only when an item arrives, so a batch is never cut
-off mid wait; an idle stream holds its partial batch until the next item.
+`['c', 'd']` closes on age: `d` arrives 8.4 seconds after `c`. If the source raises, the
+items already read are yielded first and the exception follows.
+
+## Threads: `TimedBatcher`
+
+```python
+from timedbatch import TimedBatcher
+
+
+def write_rows(batch: list[int]) -> None:
+    print("insert", batch)
+
+
+with TimedBatcher(write_rows, max_items=2, max_seconds=1.0) as batcher:
+    for row in range(5):
+        batcher.add(row)  # safe from any number of threads
+# insert [0, 1]
+# insert [2, 3]
+# insert [4]
+```
+
+What it promises:
+
+- **Size and age.** A full batch goes out at once; a partial one goes out `max_seconds`
+  after its oldest item, even if nothing else is added.
+- **Order and no overlap.** One background thread calls your function, one batch at a
+  time, in the order the items were accepted. A batch never exceeds `max_items`.
+- **Nothing lost, nothing twice.** Every accepted item is delivered once or handed back
+  once. When `add` raises, the item was not accepted.
+- **Failures.** Give `on_error(exc, batch)` to decide what to do with a failed batch.
+  Without it, failed batches are kept and raised as a `FlushError` (with `.batches` and
+  `.errors`) by the next `add`, `poll`, `flush` or `close`.
+- **Back-pressure.** `max_pending` caps items accepted but not yet delivered. `add` waits
+  for room, or raises `BatcherFull` (a `TimeoutError`) after `timeout` seconds.
+- **Shutdown.** `close()` (or leaving the `with` block) delivers the rest and stops the
+  thread; later calls to `add` raise `BatcherClosed`. A batcher you forget to close is closed when the interpreter exits normally,
+  through `sys.exit` or an uncaught exception (`flush_at_exit=True`); nothing can flush
+  after `os._exit` or a kill signal.
+- **No deadlocks from inside.** Calling `flush`, `poll` or `close` from the flush
+  function raises `RuntimeError`, and an `add` there that would wait raises `BatcherFull`.
+
+Failures come back with their items:
+
+```python
+from timedbatch import FlushError, TimedBatcher
+
+
+def flaky(batch: list[str]) -> None:
+    raise ConnectionError("database is down")
+
+
+batcher = TimedBatcher(flaky, max_items=10, max_seconds=60.0)
+batcher.add("order-1")
+batcher.add("order-2")
+try:
+    batcher.close()
+except FlushError as error:
+    print(error.batches)  # [['order-1', 'order-2']]
+    print(error)  # 1 batch (2 items) failed to flush: ConnectionError('database is down')
+```
+
+### Deterministic tests
+
+`background=False` removes the thread: due batches are delivered by the caller inside
+`add` and `poll()`, so an injected clock drives every age decision.
+
+```python
+from timedbatch import TimedBatcher
+
+now = 0.0
+sent: list[list[str]] = []
+batcher = TimedBatcher(
+    sent.append, max_items=100, max_seconds=5.0, clock=lambda: now, background=False
+)
+batcher.add("x")
+now = 4.9
+batcher.poll()
+print(sent)  # []
+now = 5.0
+batcher.poll()
+print(sent)  # [['x']]
+```
+
+## asyncio
+
+`abatched_by_time` yields a partial batch on time even while the source waits. It keeps
+the pending read across those flushes (it uses `asyncio.wait`, which does not cancel on
+timeout), so no item is lost.
+
+```python
+import asyncio
+from timedbatch import abatched_by_time
+
+
+async def ticks():
+    yield 1
+    yield 2
+    await asyncio.sleep(0.3)  # the source goes quiet
+    yield 3
+
+
+async def main() -> None:
+    async for batch in abatched_by_time(ticks(), max_items=10, max_seconds=0.1):
+        print(batch)  # [1, 2]
+        # [3]
+
+
+asyncio.run(main())
+```
+
+`AsyncTimedBatcher` is `TimedBatcher` for one event loop, with an async flush function
+(`on_error` may be sync or async). Close it with `async with` or `await aclose()`:
+coroutines cannot run at interpreter exit.
+
+```python
+import asyncio
+from timedbatch import AsyncTimedBatcher
+
+
+async def send(batch: list[str]) -> None:
+    print("send", batch)
+
+
+async def main() -> None:
+    async with AsyncTimedBatcher(send, max_items=3, max_seconds=1.0, max_pending=100) as out:
+        for word in ["a", "b", "c", "d"]:
+            await out.add(word)  # waits when 100 items are already pending
+
+
+asyncio.run(main())
+# send ['a', 'b', 'c']
+# send ['d']
+```
 
 ## Why
 
-Count-based batching is everywhere (`itertools`-style recipes, `more-itertools`
-`batched` and `chunked`), but none of them close a batch on elapsed time. Code
-that flushes logs, events or metrics almost always wants both bounds: cap the
-size so a batch never grows without limit, and cap the latency so a slow stream
-still drains on schedule. That second bound gets hand-rolled over and over with
-ad hoc timestamp bookkeeping. `timedbatch` does it in one typed, zero-dependency
-function with an injectable clock for deterministic tests.
+Count-based batching is everywhere (`itertools.batched`, `more-itertools` `chunked`),
+but none of it closes a batch on elapsed time. Code that ships logs, events or metrics
+almost always wants both bounds: cap the size so a batch never grows without limit, and
+cap the latency so a slow stream still drains on schedule. The hard part is the rest:
+flushing an idle buffer, not losing items when the sink fails or the program exits,
+slowing producers down when the sink falls behind. `timedbatch` does that once, with tests
+that run thousands of random timelines against a reference model and hammer the batchers
+from many threads and tasks.
 
 ## License
 

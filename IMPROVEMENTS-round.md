@@ -6,8 +6,8 @@ Progress:
 - [x] `batched_by_time`: strict limits, partial batch kept when the source raises
 - [x] `TimedBatcher`: push style, background age flush, back-pressure, close and exit flush
 - [x] `abatched_by_time` and `AsyncTimedBatcher` for asyncio
-- [ ] Contracts: reference model, stress invariants, exit flush in a child process, typing, README examples, installed wheel e2e
-- [ ] Docs: README, CHANGELOG, docstrings, packaging metadata
+- [x] Contracts: reference model, stress invariants, exit flush in a child process, typing, README examples, installed wheel e2e
+- [x] Docs: README, CHANGELOG, docstrings, packaging metadata
 - [ ] Gates: ruff format, ruff check, mypy --strict, pytest
 - [ ] Independent review findings fixed with regression tests
 - [ ] Pull request opened, guard clean
