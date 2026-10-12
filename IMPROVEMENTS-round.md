@@ -2,10 +2,10 @@
 
 Progress:
 - [x] Brainstorm ranked improvements (this file)
-- [ ] Shared limits validation and error types (`FlushError`, `BatcherClosed`, `BatcherFull`)
-- [ ] `batched_by_time`: strict limits, partial batch kept when the source raises
-- [ ] `TimedBatcher`: push style, background age flush, back-pressure, close and exit flush
-- [ ] `abatched_by_time` and `AsyncTimedBatcher` for asyncio
+- [x] Shared limits validation and error types (`FlushError`, `BatcherClosed`, `BatcherFull`)
+- [x] `batched_by_time`: strict limits, partial batch kept when the source raises
+- [x] `TimedBatcher`: push style, background age flush, back-pressure, close and exit flush
+- [x] `abatched_by_time` and `AsyncTimedBatcher` for asyncio
 - [ ] Contracts: reference model, stress invariants, exit flush in a child process, typing, README examples, installed wheel e2e
 - [ ] Docs: README, CHANGELOG, docstrings, packaging metadata
 - [ ] Gates: ruff format, ruff check, mypy --strict, pytest
