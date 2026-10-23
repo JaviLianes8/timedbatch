@@ -66,6 +66,30 @@ def test_age_on_arrival_uses_the_injected_clock() -> None:
     assert batches == [[1, 2], [3]]
 
 
+def test_the_idle_wait_counts_from_the_first_item_not_from_the_latest() -> None:
+    clock = FakeClock()
+
+    async def source() -> AsyncIterator[int]:
+        yield 1
+        clock.now = 4.99  # the second item arrives when the batch is almost due
+        yield 2
+        await asyncio.sleep(30)  # then the source goes quiet
+        yield 3
+
+    async def main() -> tuple[list[int], float]:
+        batches = abatched_by_time(source(), 10, 5.0, clock=clock)
+        started = time.monotonic()
+        first = await batches.__anext__()
+        elapsed = time.monotonic() - started
+        await batches.aclose()
+        return first, elapsed
+
+    first, elapsed = asyncio.run(main())
+    assert first == [1, 2]
+    # 0.01 seconds were left on the window; waiting a fresh window would take 5.
+    assert elapsed < 2.5
+
+
 def test_items_read_before_a_source_error_are_yielded_first() -> None:
     async def source() -> AsyncIterator[int]:
         yield 1
