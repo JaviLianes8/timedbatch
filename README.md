@@ -1,5 +1,7 @@
 # timedbatch
 
+[![Lianes8 Certified](https://lianes8studio.com/certified/lianes8-certified-badge.svg)](https://lianes8studio.com/certified)
+
 Batch items by a max count and a max age, flushing when either limit is hit. Typed, no
 dependencies, for plain iterables, for threads and for asyncio.
 
@@ -20,7 +22,8 @@ pip install timedbatch
 
 A batch is delivered as soon as it holds `max_items` items or its oldest item is
 `max_seconds` old, whichever comes first. `max_seconds` may be `math.inf` to batch by
-count only.
+count only. The [guide](https://github.com/JaviLianes8/timedbatch/blob/main/GUIDE.md)
+has the full contract: every rule, every error and how to test code that uses it.
 
 ## Iterables
 
@@ -165,7 +168,8 @@ asyncio.run(main())
 ```
 
 `AsyncTimedBatcher` is `TimedBatcher` for one event loop, with an async flush function
-(`on_error` may be sync or async). Close it with `async with` or `await aclose()`:
+(a plain function also works and counts as delivered when it returns; `on_error` may be
+sync or async). Close it with `async with` or `await aclose()`:
 coroutines cannot run at interpreter exit. If its flush task is cancelled, for example
 because the loop ended first, the batcher closes and the next call hands back what it
 held. `TimedBatcher` refuses an `async def` flush function instead of dropping batches.
@@ -190,20 +194,39 @@ asyncio.run(main())
 # send ['d']
 ```
 
+## Errors
+
+| Exception | Raised by | Meaning |
+|---|---|---|
+| `FlushError` | `add`, `poll`, `flush`, `close`, `aclose` | Earlier batches failed; `.batches` and `.errors` hold them. From `add`, the new item was not accepted. |
+| `BatcherClosed` (a `RuntimeError`) | `add` | The batcher is closed, or its async flush task stopped. |
+| `BatcherFull` (a `TimeoutError`) | `add` | No room under `max_pending` within `timeout`. |
+| `TimeoutError` | `flush`, `close` | The sink did not finish within `timeout`. |
+| `RuntimeError` | `flush`, `poll`, `close`, `aclose` | Called from inside the flush function. |
+| `TypeError`, `ValueError` | every entry point, `timeout` arguments | A limit, a handler or a timeout is invalid; nothing was created or accepted. |
+
+The library's own messages never include your items; a `FlushError`
+quotes at most 200 characters of the first error's `repr`.
+
 ## Why
 
-Count-based batching is everywhere (`itertools.batched`, `more-itertools` `chunked`),
-but none of it closes a batch on elapsed time. Code that ships logs, events or metrics
-almost always wants both bounds: cap the size so a batch never grows without limit, and
-cap the latency so a slow stream still drains on schedule. The hard part is the rest:
-flushing an idle buffer, not losing items when the sink fails or the program exits,
-slowing producers down when the sink falls behind. `timedbatch` does that once, with tests
-that run hundreds of random timelines against a reference model and hammer the batchers
-from many threads and tasks.
+Count-based batching is everywhere: `itertools.batched` (Python 3.12+) and
+`more-itertools` `chunked` cut an iterable into groups of `n`, but neither closes a batch
+on elapsed time. `reactivex` has `buffer_with_time_or_count`, which bounds both, but its
+time windows run on a fixed schedule from the moment you subscribe, so a batch can close
+an instant after its first item arrived, and it emits empty lists while the source is
+quiet; it also brings the observable model and its schedulers. Code that ships logs, events or
+metrics usually wants the latency bound measured from the oldest waiting item, with
+nothing sent while idle, and it needs the rest done right: flushing an idle buffer, not
+losing items when the sink fails or the program exits, slowing producers down when the
+sink falls behind. `timedbatch` does that once, with tests that run hundreds of random
+timelines against a reference model, hammer the batchers from many threads and tasks,
+and check count-only batching against CPython's own `batched`.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/JaviLianes8/timedbatch/blob/main/LICENSE).
+Changes are listed in the [changelog](https://github.com/JaviLianes8/timedbatch/blob/main/CHANGELOG.md).
 
 ## Links
 
