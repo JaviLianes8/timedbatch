@@ -1,0 +1,47 @@
+{
+  "itertools.rst": {
+    "title": "Python documentation, itertools (the batched recipe)",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.14.0/Doc/library/itertools.rst",
+    "revision": "tag v3.14.0",
+    "licence": "PSF-2.0 (documentation examples 0BSD), https://docs.python.org/3/license.html",
+    "fetched": "2026-10-23",
+    "size": 67453,
+    "sha256": "69582481938d49183664bd49769b336aa138f7ee8790a6a6089c99b229d62902"
+  },
+  "cpython-test_itertools.py.txt": {
+    "title": "CPython test suite, test_itertools (test_batched vectors)",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.14.0/Lib/test/test_itertools.py",
+    "revision": "tag v3.14.0",
+    "licence": "PSF-2.0 (documentation examples 0BSD), https://docs.python.org/3/license.html",
+    "fetched": "2026-10-23",
+    "size": 101443,
+    "sha256": "24b2df66298a9d5dc9518f3faeff578111db83bec5b1879728344d9998e93865"
+  },
+  "asyncio-task.rst": {
+    "title": "Python documentation, asyncio tasks (wait and wait_for)",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.14.0/Doc/library/asyncio-task.rst",
+    "revision": "tag v3.14.0",
+    "licence": "PSF-2.0 (documentation examples 0BSD), https://docs.python.org/3/license.html",
+    "fetched": "2026-10-23",
+    "size": 50912,
+    "sha256": "01af79f446bff7cd18a466bf8abc1d6e0a6c6038c10b01a0ac5ce0cb96ce0959"
+  },
+  "atexit.rst": {
+    "title": "Python documentation, atexit",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.14.0/Doc/library/atexit.rst",
+    "revision": "tag v3.14.0",
+    "licence": "PSF-2.0 (documentation examples 0BSD), https://docs.python.org/3/license.html",
+    "fetched": "2026-10-23",
+    "size": 4584,
+    "sha256": "e927d28a2e3a4dbb954830c129e779bd697084f6e4687bc4e213c25674676ae0"
+  },
+  "threading.rst": {
+    "title": "Python documentation, threading (TIMEOUT_MAX)",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.14.0/Doc/library/threading.rst",
+    "revision": "tag v3.14.0",
+    "licence": "PSF-2.0 (documentation examples 0BSD), https://docs.python.org/3/license.html",
+    "fetched": "2026-10-23",
+    "size": 52591,
+    "sha256": "35bc2547d513b1ee02b9917391408068f6d8dde044ef2378042b8abc170e07d7"
+  }
+}
