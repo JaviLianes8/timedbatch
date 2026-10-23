@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator, Callable
 from typing import Any, TypeVar
 
-from ._limits import check_limits
+from ._limits import check_callables, check_limits
 
 _T = TypeVar("_T")
 
@@ -32,8 +32,23 @@ def abatched_by_time(
     already taken from the source is dropped, together with the partial batch. Each read
     of the source runs in its own task, so context variables set by the source do not
     carry over from one item to the next.
+
+    >>> import asyncio
+    >>> from timedbatch import abatched_by_time
+    >>> async def ticks():
+    ...     yield 1
+    ...     yield 2
+    ...     await asyncio.sleep(0.5)  # the source goes quiet
+    ...     yield 3
+    >>> async def main() -> None:
+    ...     async for batch in abatched_by_time(ticks(), max_items=10, max_seconds=0.1):
+    ...         print(batch)
+    >>> asyncio.run(main())
+    [1, 2]
+    [3]
     """
     items, seconds, _ = check_limits(max_items, max_seconds)
+    check_callables(clock=clock)
     if not isinstance(aiterable, AsyncIterable):
         raise TypeError(f"expected an async iterable, not {type(aiterable).__name__}")
     return _abatches(aiterable.__aiter__(), items, seconds, clock)

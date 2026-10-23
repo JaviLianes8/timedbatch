@@ -50,3 +50,10 @@ def check_limits(
 def check_timeout(timeout: object) -> float | None:
     """Return a wait timeout in seconds (``None`` waits forever); negative means now."""
     return None if timeout is None else _seconds("timeout", timeout)
+
+
+def check_callables(**functions: object) -> None:
+    """Raise ``TypeError`` for any argument that is neither callable nor ``None``."""
+    for name, function in functions.items():
+        if function is not None and not callable(function):
+            raise TypeError(f"{name} must be callable, not {type(function).__name__}")

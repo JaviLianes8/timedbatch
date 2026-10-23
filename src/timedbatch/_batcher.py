@@ -11,7 +11,7 @@ from types import TracebackType
 from ._core import Buffer, T, is_async
 from ._engine import Engine
 from ._errors import BatcherClosed
-from ._limits import check_limits, check_timeout
+from ._limits import check_callables, check_limits, check_timeout
 
 
 class TimedBatcher(Engine[T]):
@@ -26,6 +26,22 @@ class TimedBatcher(Engine[T]):
     for room. With ``background=False`` there is no thread: due batches are delivered by
     the caller on ``add`` and ``poll``, which makes an injected ``clock`` fully
     deterministic. ``flush_at_exit`` closes a forgotten batcher when the interpreter exits.
+
+    >>> from timedbatch import TimedBatcher
+    >>> now = 0.0
+    >>> sent: list[list[str]] = []
+    >>> batcher = TimedBatcher(
+    ...     sent.append, max_items=2, max_seconds=5.0, clock=lambda: now, background=False
+    ... )
+    >>> for word in ["a", "b", "c"]:
+    ...     batcher.add(word)
+    >>> sent, batcher.pending
+    ([['a', 'b']], 1)
+    >>> now = 5.0
+    >>> batcher.poll()
+    >>> sent
+    [['a', 'b'], ['c']]
+    >>> batcher.close()
     """
 
     def __init__(
@@ -42,6 +58,7 @@ class TimedBatcher(Engine[T]):
     ) -> None:
         if not callable(flush):
             raise TypeError("flush must be callable")
+        check_callables(on_error=on_error, clock=clock)
         if is_async(flush) or is_async(on_error):
             raise TypeError("flush and on_error must be plain functions; see AsyncTimedBatcher")
         items, seconds, pending = check_limits(max_items, max_seconds, max_pending)

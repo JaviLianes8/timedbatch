@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import math
+from collections import deque
 from collections.abc import Callable
 from typing import Generic, TypeVar
 
@@ -20,10 +21,12 @@ class Buffer(Generic[T]):
         self.max_items = max_items
         self.max_seconds = max_seconds
         self.clock = clock
-        self._items: list[T] = []
+        # Deques: a slow sink can leave many batches waiting, and taking each one from the
+        # front of a list would make draining them quadratic.
+        self._items: deque[T] = deque()
         # One stamp per item: after a slow delivery the buffer can hold more than one
         # batch, and the next batch's age must come from its own oldest item.
-        self._stamps: list[float] = []
+        self._stamps: deque[float] = deque()
 
     def __len__(self) -> int:
         return len(self._items)
@@ -48,9 +51,10 @@ class Buffer(Generic[T]):
             and self.clock() - self._stamps[0] < self.max_seconds
         ):
             return None
-        batch = self._items[: self.max_items]
-        del self._items[: self.max_items]
-        del self._stamps[: self.max_items]
+        size = min(self.max_items, len(self._items))
+        batch = [self._items.popleft() for _ in range(size)]
+        for _ in range(size):
+            self._stamps.popleft()
         return batch
 
 

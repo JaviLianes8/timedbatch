@@ -8,7 +8,7 @@ from ._batcher import TimedBatcher
 from ._batching import batched_by_time
 from ._errors import BatcherClosed, BatcherFull, FlushError
 
-__version__ = "0.2.0"
+__version__ = "1.0.0"
 
 __all__ = [
     "AsyncTimedBatcher",
@@ -19,3 +19,9 @@ __all__ = [
     "abatched_by_time",
     "batched_by_time",
 ]
+
+# The public names report the package as their home, so reprs, pickles and docs never
+# depend on the private module layout, which is free to change.
+for _name in __all__:
+    globals()[_name].__module__ = __name__
+del _name
