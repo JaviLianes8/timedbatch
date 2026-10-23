@@ -26,8 +26,9 @@ reveal_type(AsyncTimedBatcher(send, max_items=2, max_seconds=1.0))
 reveal_type(FlushError([[1]], [ValueError()]).batches)
 TimedBatcher(sink, max_items=2, max_seconds=1.0).add("text")
 TimedBatcher(sink, 2, 1.0)
-AsyncTimedBatcher(sink, max_items=2, max_seconds=1.0)
+AsyncTimedBatcher(send, max_items="2", max_seconds=1.0)
 batched_by_time([1], 2, 1.0, clock=1.0)
+AsyncTimedBatcher(sink, max_items=2, max_seconds=1.0)
 """
 
 
@@ -69,3 +70,7 @@ def test_results_are_typed(mypy_output: str, line: int, expected: str) -> None:
 )
 def test_wrong_calls_are_rejected(mypy_output: str, line: int, code: str) -> None:
     assert re.search(rf"snippet\.py:{line}: error: .*\[{code}\]", mypy_output), mypy_output
+
+
+def test_a_plain_flush_function_is_accepted_by_the_async_batcher(mypy_output: str) -> None:
+    assert "snippet.py:18:" not in mypy_output, mypy_output

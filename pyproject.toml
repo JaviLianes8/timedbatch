@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "timedbatch"
-version = "0.2.0"
+version = "1.0.0"
 description = "Batch items by a max count and a max age, for iterables, threads and asyncio, without losing items"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,7 +16,7 @@ keywords = [
     "buffer", "asyncio", "back-pressure",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Framework :: AsyncIO",
@@ -27,23 +27,29 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
 ]
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["ruff", "mypy", "pytest", "build", "twine"]
+dev = ["ruff", "mypy", "pytest", "pytest-timeout", "build", "twine"]
 
 [project.urls]
 Homepage = "https://lianes8studio.com"
-Repository = "https://github.com/JaviLianes8/timedbatch"
+Source = "https://github.com/JaviLianes8/timedbatch"
 Issues = "https://github.com/JaviLianes8/timedbatch/issues"
 Changelog = "https://github.com/JaviLianes8/timedbatch/blob/main/CHANGELOG.md"
 LinkedIn = "https://www.linkedin.com/in/jlianes/"
 Funding = "https://buymeacoffee.com/jlianesglrs"
 
 [tool.hatch.build.targets.sdist]
-exclude = ["IMPROVEMENTS-round.md"]
+# Third-party files are fetched locally for the oracle tests and never shipped; only their
+# manifest is.
+exclude = [
+    "IMPROVEMENTS-round*.md", "CERT-1.0-*.md", ".github", "tests/upstream/*",
+    "!tests/upstream/MANIFEST.json",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/timedbatch"]
@@ -63,3 +69,4 @@ strict = true
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q"
+timeout = 300

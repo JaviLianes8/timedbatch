@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable, Iterable, Iterator
 from typing import TypeVar
 
-from ._limits import check_limits
+from ._limits import check_callables, check_limits
 
 _T = TypeVar("_T")
 
@@ -31,8 +31,21 @@ def batched_by_time(
 
     The ``clock`` returns a monotonic timestamp in seconds. Inject it to make the
     behaviour deterministic in tests; it defaults to :func:`time.monotonic`.
+
+    >>> import math
+    >>> from timedbatch import batched_by_time
+    >>> list(batched_by_time(range(5), 2, math.inf))
+    [[0, 1], [2, 3], [4]]
+    >>> now = 0.0
+    >>> def arrivals():
+    ...     global now
+    ...     for now, item in [(0.0, "a"), (1.0, "b"), (9.0, "c"), (9.5, "d")]:
+    ...         yield item
+    >>> list(batched_by_time(arrivals(), 10, 5.0, clock=lambda: now))
+    [['a', 'b', 'c'], ['d']]
     """
     items, seconds, _ = check_limits(max_items, max_seconds)
+    check_callables(clock=clock)
     return _batches(iter(iterable), items, seconds, clock)
 
 
