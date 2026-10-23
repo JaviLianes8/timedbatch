@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-10-22
+## [1.0.0] - 2026-10-23
 
 The first release on PyPI (0.1.0 and 0.2.0 were never published there). The
 public API is now stable: the seven names in `timedbatch.__all__`, their signatures,

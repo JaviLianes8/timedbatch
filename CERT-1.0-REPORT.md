@@ -34,7 +34,7 @@ Progress:
 | 9 | Seeded fuzz, no crash, hang or blowup | PASS |
 | 10 | Supported Pythons | PASS: CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2 and 3.14.2t |
 | 11 | README and `twine check` | PASS: `twine check --strict` on wheel and sdist, absolute links (tested), badge, errors, honest comparison |
-| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-22 |
+| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-23 |
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
@@ -193,7 +193,7 @@ fails with it (checked with the mutant applied) and passes without it.
 
 ## Gates (item 15)
 
-At bda3760 (later commits change only this report) on the laptop
+At bda3760 (later commits change only this report and the CHANGELOG date, after which `tests/test_docs.py`, ruff and `mypy --strict src` were rerun and exit 0) on the laptop
 from a fresh clone (CPython 3.14.6), each command on its own, with the fetched sources,
 both oracle packages and `TIMEDBATCH_E2E=1`: `ruff format --check .`, `ruff check .`,
 `mypy --strict src` and `mypy --strict src tests` exit 0, and `pytest` 1262 passed
