@@ -193,7 +193,7 @@ fails with it (checked with the mutant applied) and passes without it.
 
 ## Gates (item 15)
 
-At bda3760 (the last change to code, tests or docs other than this report) on the laptop
+At bda3760 (later commits change only this report) on the laptop
 from a fresh clone (CPython 3.14.6), each command on its own, with the fetched sources,
 both oracle packages and `TIMEDBATCH_E2E=1`: `ruff format --check .`, `ruff check .`,
 `mypy --strict src` and `mypy --strict src tests` exit 0, and `pytest` 1262 passed
