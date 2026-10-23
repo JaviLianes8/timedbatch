@@ -17,7 +17,7 @@ Progress:
 - [x] Gates (item 15)
 - [ ] Five QA lenses (item 19)
 - [ ] Independent reviewer (item 16)
-- [ ] PR merged and published by the maintainer (item 17); the PR and trace guard are done
+- [ ] PR #3 merged and published by the maintainer (item 17); the PR and trace guard are done
 
 ## Scorecard
 
@@ -39,7 +39,7 @@ Progress:
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | pending |
-| 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
+| 17 | PR and trace guard | PR #3 from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
 | 18 | Contracts bite (mutations) | PASS: 40 author mutants, 39 killed at once, 1 survivor killed by a new contract |
 | 19 | Five independent QA lenses | pending |
 
@@ -193,8 +193,8 @@ fails with it (checked with the mutant applied) and passes without it.
 
 ## Gates (item 15)
 
-At 49e6005 on Elena's PC from a fresh clone (CPython 3.14.2), each command on its own,
-with the fetched sources, both oracle packages and `TIMEDBATCH_E2E=1`:
-`ruff format --check .`, `ruff check .`, `mypy --strict src`, `mypy --strict src tests`
-exit 0 and `pytest` 1261 passed. The final head is checked the same way before the PR is
-handed over (see the PR).
+At bda3760 (the last change to code, tests or docs other than this report) on the laptop
+from a fresh clone (CPython 3.14.6), each command on its own, with the fetched sources,
+both oracle packages and `TIMEDBATCH_E2E=1`: `ruff format --check .`, `ruff check .`,
+`mypy --strict src` and `mypy --strict src tests` exit 0, and `pytest` 1262 passed
+(exit 0). The same commands at 49e6005 on Elena's PC (CPython 3.14.2): exit 0, 1261 passed.
