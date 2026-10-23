@@ -164,7 +164,10 @@ class TimedBatcher(Engine[T]):
         if self._thread is None:
             self._drain()
         else:
-            self._thread.join(timeout)
+            # join() raises OverflowError past the platform limit (about 49 days on
+            # Windows); a timeout that long means no limit at all.
+            forever = timeout is None or timeout >= threading.TIMEOUT_MAX
+            self._thread.join(None if forever else timeout)
             if self._thread.is_alive():
                 raise TimeoutError("the flush thread is still delivering")
         # Only now: an interrupted or timed out close must leave the exit flush in place.

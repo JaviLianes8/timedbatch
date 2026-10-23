@@ -24,8 +24,14 @@ def _count(name: str, value: object) -> int:
 def _seconds(name: str, value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (Real, Decimal)):
         raise TypeError(f"{name} must be a real number, not {type(value).__name__}")
-    seconds = float(value)
     # NaN compares false with everything, so it would silently disable a limit.
+    if isinstance(value, Decimal) and value.is_nan():
+        raise ValueError(f"{name} must not be NaN")
+    try:
+        seconds = float(value)
+    except OverflowError:
+        # An int or Fraction beyond the float range: as long as any float can measure.
+        seconds = math.inf if value > 0 else -math.inf  # type: ignore[operator]
     if math.isnan(seconds):
         raise ValueError(f"{name} must not be NaN")
     return seconds
