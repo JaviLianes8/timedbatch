@@ -288,8 +288,8 @@ an explicit scratch `--basetemp` and `--timeout=300`.
 ## QA lenses, round 1, 2026-11-02
 
 Reviewed base: `ef35b302e4bcce852769625b35fad5b53a84c017` on `release/1.0.0`.
-Implementation commit: `fix failure recovery and numeric contracts for 1.0.0`
-(the commit containing this QA section).
+Implementation commit: `322f16781e59ef5e61f4d8e104999a73c7256cba`
+(`fix failure recovery and numeric contracts for 1.0.0`).
 
 All 19 reported findings are addressed. Independent lens re-verification remains pending;
 this fix round does not substitute for those verdicts.
