@@ -341,3 +341,43 @@ includes these updated contracts.
 ### Disputed findings
 
 None.
+
+## QA lenses, round 2, 2026-11-02
+
+Reviewed base: `5cb0a393af99e5b080c9ca87978d066cc68b5fbd` on `release/1.0.0`.
+Implementation commit: `3e151465a2b4012b28c36c6ea5e432df382bbdbe`
+(`add async source traceback secrecy contract`).
+
+Lens E confirmed E-01 through E-04 fixed and reported E-05, a missing regression
+contract. E-05 is addressed; independent lens re-verification remains pending.
+
+| Finding | Change and contract evidence |
+| --- | --- |
+| E-05 | Extended `test_async_source_rejection_does_not_echo_dynamic_type_names` to format the complete exception traceback and assert that both the hostile type name and its payload are absent. The bounded replacement message is checked exactly. Existing `from None` suppression is preserved; runtime behavior and the public API are unchanged. CHANGELOG records the added coverage. |
+
+### Regression and mutation evidence
+
+The extended contract passes against the unchanged implementation. In an isolated
+scratch copy, N15 removes only `from None` from the invalid async-source `TypeError`
+in `_abatching.py`. The same repository contract then fails with an assertion because
+the formatted traceback contains the secret-bearing protocol error. The mutation was
+restored byte for byte after the check. This is a coverage fix, not a runtime defect.
+
+| Reviewer mutation | Contract that now rejects it |
+| --- | --- |
+| N15: remove async-source error context suppression | `tests/test_numeric_protocol_contract.py::test_async_source_rejection_does_not_echo_dynamic_type_names` |
+
+### Gates
+
+On CPython 3.14.6, `ruff format --check .`, `ruff check .`, `mypy --strict src`
+and `mypy --strict src tests` each exit 0. The complete suite exits 0 with
+**1296 passed**, including freshly built wheel/sdist inspection, installed-wheel
+consumers, upgrade from PyPI 0.2.0, upstream sources and both reference packages.
+All pytest invocations use a 300-second per-test timeout and scratch basetemps.
+Python files remain at most 200 lines. Evidence is retained under
+`C:/lianes8-build/codex-pylib/scratch/timedbatch-cert/fix-r2/`:
+`baseline.log`, `N15.log` and `full.log`.
+
+### Disputed findings
+
+None.
