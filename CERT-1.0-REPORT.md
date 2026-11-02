@@ -4,8 +4,9 @@ The 1.0.0 certification bar (19 items) applied to timedbatch. On 2026-11-02,
 `https://pypi.org/pypi/timedbatch/json` lists 0.2.0, uploaded on 2026-11-01. Its
 package files are byte-for-byte identical to `main` at 1a0c415. The installed-wheel
 upgrade test covers this actual release; every behavior change is in the CHANGELOG.
-The earlier preparation evidence below is retained, with current results recorded in
-the 2026-11-02 section. Five QA lenses and independent review remain pending.
+The earlier preparation evidence below is retained. All five QA lenses and the
+independent reviewer have passed; their final verdicts are recorded below on 2026-11-03.
+Merge and publication remain reserved for the maintainer.
 
 Progress:
 - [x] Branch `release/1.0.0` created from `main` (1a0c415, 0.2.0)
@@ -17,9 +18,9 @@ Progress:
 - [x] Wheel and sdist contents, real e2e, every Python on this PC (items 8, 10, 14)
 - [x] Author mutation round (item 18)
 - [x] Gates (item 15)
-- [ ] Five QA lenses (item 19)
-- [ ] Independent reviewer (item 16)
-- [ ] PR #3 merged and published by the maintainer (item 17); the PR and trace guard are done
+- [x] Five QA lenses (item 19)
+- [x] Independent reviewer (item 16)
+- [x] PR #3 and pre-merge process (item 17); merge and publication reserved for the maintainer
 
 ## Scorecard
 
@@ -40,10 +41,62 @@ Progress:
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
-| 16 | Independent reviewer | pending |
-| 17 | PR and trace guard | PR #3 from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
+| 16 | Independent reviewer | PASS: round 1 at f8329c487e7078090db4a121b50b444999fbb20a; scorecard below |
+| 17 | PR and trace guard | PASS for pre-merge scope: PR #3 from `release/1.0.0`, trace guard CLEAN; merge and publication reserved for the maintainer |
 | 18 | Contracts bite (mutations) | PASS: original 40 mutants retained; ten more on the updated validation module, all killed |
-| 19 | Five independent QA lenses | pending |
+| 19 | Five independent QA lenses | PASS: all five final verdicts recorded below |
+
+## Final QA and review, 2026-11-03
+
+Evidence paths are relative to this repository root. The evidence directory is
+`../../scratch/timedbatch-cert/`. Earlier pending statements below describe the
+status at those historical checkpoints; this section records their resolution.
+
+| Lens | Rounds | Final verdict | Report path | Commit |
+| --- | --- | --- | --- | --- |
+| a. API and docs | 2 | PASS | `../../scratch/timedbatch-cert/lens-a-r2/REPORT.md` | `5cb0a393af99e5b080c9ca87978d066cc68b5fbd` |
+| b. Correctness and ground truth | 2 | PASS | `../../scratch/timedbatch-cert/lens-b-r2/REPORT.md` | `5cb0a393af99e5b080c9ca87978d066cc68b5fbd` |
+| c. Robustness | 2 | PASS | `../../scratch/timedbatch-cert/lens-c-r2/REPORT.md` | `5cb0a393af99e5b080c9ca87978d066cc68b5fbd` |
+| d. Packaging and real e2e | 1 | PASS | `../../scratch/timedbatch-cert/lens-d-r1/REPORT.md` | `ef35b302e4bcce852769625b35fad5b53a84c017` |
+| e. Contract strength | 4 | PASS | `../../scratch/timedbatch-cert/lens-e-r4/REPORT.md` | `f8329c487e7078090db4a121b50b444999fbb20a` |
+
+The reviewer verified the five reports and their execution evidence. Runtime code is
+unchanged since the passing a/b/c revision; later changes add documentation and
+regression contracts. Packaging and installed e2e were rerun by the reviewer at the
+final tested revision, covering the earlier d verdict. Lens e tested that revision.
+
+### Reviewer's scorecard
+
+Round 1: **PASS**, no findings. Report:
+`../../scratch/timedbatch-cert/review-r1/REPORT.md`.
+Revision: `f8329c487e7078090db4a121b50b444999fbb20a`.
+All 18 reviewable items passed. The following summarizes the reviewer's evidence.
+
+| Item | Verdict | Evidence |
+| --- | --- | --- |
+| 1. Stable public API | PASS | Seven public names, signatures, defaults and error families reviewed; changes from PyPI 0.2.0 documented and upgrade exercised. |
+| 2. Exact public exports | PASS | Exact export contracts and installed consumer checks; documentation uses public imports. |
+| 3. Runnable public docstrings | PASS | All seven names have executed examples; README and GUIDE outputs also verified. |
+| 4. Complete typing | PASS | Strict mypy on source and tests; installed typing marker; recovery payload typing documented. |
+| 5. Typed and bounded errors | PASS | Error-family, hostile-input, recovery, serialization and traceback contracts; installed consumer checks secret-bearing sink failures. |
+| 6. Behavioral contracts | PASS | Complete enabled suite: 1,298 passed, no skips; ten independently injected faults rejected. |
+| 7. Ground truth and provenance | PASS | Five freshly fetched CPython files match manifest hashes; live stdlib and installed reference comparisons pass. |
+| 8. External e2e and upgrade | PASS | Fresh wheel consumers and actual PyPI 0.2.0 upgrade, including old failure pickles; no CLI is provided. |
+| 9. Seeded fuzz and robustness | PASS | Timeline and operation models, numeric fuzz, hostile inputs, concurrency and scaling; no crash, timeout or hang. |
+| 10. Available supported Pythons | PASS | CPython 3.14.6: 1,298 passed. Versions 3.10 through 3.13 and free-threaded 3.14 unavailable; other registrations point to missing executables. |
+| 11. README and rendering | PASS | Strict twine checks on both artifacts, Markdown rendering, badge and absolute external links verified. |
+| 12. Dated CHANGELOG | PASS | Dated 1.0.0 section, 2026-11-02, records stable API and changes from 0.2.0. |
+| 13. Release metadata | PASS | Version 1.0.0, Production/Stable, Python classifiers, MIT license, project URLs, keywords and no runtime dependencies. |
+| 14. Distribution contents | PASS | Wheel and sdist inspected; LICENSE and typing marker present; RECORD verified; no generated junk or downloaded third-party bodies. |
+| 15. Individual gates | PASS | Format, lint, strict typing and full pytest each exit 0; additional strict source-plus-tests check passes. |
+| 16. Independent review | PASS | Separate-clone audit, installed consumer, mutation checks and all-item assessment; no unresolved findings. |
+| 18. Contracts reject mutations | PASS | Ten independent single-site faults killed by existing tests; source restored byte for byte and 675 regression/model cases pass. |
+| 19. Five QA lenses | PASS | All five final reports and supporting execution evidence verified. |
+
+Item 17 was explicitly excluded from the reviewer's pre-merge verdict and marked
+pending merge in that report. Its pre-merge requirements are recorded separately in
+the main scorecard above. Neither this certification nor the reviewer claims that
+merge or publication has occurred.
 
 ## Baseline on 0.2.0
 
@@ -375,7 +428,7 @@ and `mypy --strict src tests` each exit 0. The complete suite exits 0 with
 consumers, upgrade from PyPI 0.2.0, upstream sources and both reference packages.
 All pytest invocations use a 300-second per-test timeout and scratch basetemps.
 Python files remain at most 200 lines. Evidence is retained under
-`C:/lianes8-build/codex-pylib/scratch/timedbatch-cert/fix-r2/`:
+`../../scratch/timedbatch-cert/fix-r2/`:
 `baseline.log`, `N15.log` and `full.log`.
 
 ### Disputed findings
@@ -420,7 +473,7 @@ including freshly built wheel/sdist inspection, installed-wheel consumers, upgra
 from PyPI 0.2.0, upstream sources and both reference packages. All pytest invocations
 use a 300-second per-test timeout and scratch basetemps. Python files remain at most
 200 lines. Evidence is retained under
-`C:/lianes8-build/codex-pylib/scratch/timedbatch-cert/fix-r3/`:
+`../../scratch/timedbatch-cert/fix-r3/`:
 `baseline.log`, `M08.log`, `M09.log`, `restored.log` and `full.log`.
 
 ### Disputed findings
