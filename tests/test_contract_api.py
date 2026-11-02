@@ -21,7 +21,9 @@ from timedbatch import (
     batched_by_time,
 )
 
-LIMITS = "max_items: 'int', max_seconds: 'float', max_pending: 'int | None' = None"
+LIMITS = (
+    "max_items: 'SupportsIndex', max_seconds: 'Seconds', max_pending: 'SupportsIndex | None' = None"
+)
 HANDLERS = (
     "on_error: 'Callable[[Exception, list[T]], object] | None' = None, "
     "clock: 'Callable[[], float]' = <built-in function monotonic>"
@@ -31,18 +33,19 @@ SIGNATURES = {
     " -> 'None'",
     "TimedBatcher": f"(flush: 'Callable[[list[T]], object]', *, {LIMITS}, {HANDLERS}, "
     "background: 'bool' = True, flush_at_exit: 'bool' = True) -> 'None'",
-    "abatched_by_time": "(aiterable: 'AsyncIterable[_T]', max_items: 'int', max_seconds: "
-    "'float', *, clock: 'Callable[[], float]' = <built-in function monotonic>) -> "
+    "abatched_by_time": "(aiterable: 'AsyncIterable[_T]', max_items: 'SupportsIndex', max_seconds: "
+    "'Seconds', *, clock: 'Callable[[], float]' = <built-in function monotonic>) -> "
     "'AsyncGenerator[list[_T], None]'",
-    "batched_by_time": "(iterable: 'Iterable[_T]', max_items: 'int', max_seconds: 'float', *, "
+    "batched_by_time": "(iterable: 'Iterable[_T]', max_items: 'SupportsIndex', "
+    "max_seconds: 'Seconds', *, "
     "clock: 'Callable[[], float]' = <built-in function monotonic>) -> 'Iterator[list[_T]]'",
     "FlushError": "(batches: 'list[list[Any]]', errors: 'list[BaseException]') -> 'None'",
-    "TimedBatcher.add": "(self, item: 'T', timeout: 'float | None' = None) -> 'None'",
+    "TimedBatcher.add": "(self, item: 'T', timeout: 'Seconds | None' = None) -> 'None'",
     "TimedBatcher.poll": "(self) -> 'None'",
-    "TimedBatcher.flush": "(self, timeout: 'float | None' = None) -> 'None'",
-    "TimedBatcher.close": "(self, timeout: 'float | None' = None) -> 'None'",
-    "AsyncTimedBatcher.add": "(self, item: 'T', timeout: 'float | None' = None) -> 'None'",
-    "AsyncTimedBatcher.flush": "(self, timeout: 'float | None' = None) -> 'None'",
+    "TimedBatcher.flush": "(self, timeout: 'Seconds | None' = None) -> 'None'",
+    "TimedBatcher.close": "(self, timeout: 'Seconds | None' = None) -> 'None'",
+    "AsyncTimedBatcher.add": "(self, item: 'T', timeout: 'Seconds | None' = None) -> 'None'",
+    "AsyncTimedBatcher.flush": "(self, timeout: 'Seconds | None' = None) -> 'None'",
     "AsyncTimedBatcher.aclose": "(self) -> 'None'",
 }
 
@@ -78,13 +81,11 @@ def test_every_public_name_reports_the_package_as_its_module() -> None:
     assert repr(pickle.loads(pickle.dumps(error))).startswith("FlushError(")
 
 
-def test_flush_error_quotes_at_most_200_characters_of_the_first_error() -> None:
+def test_flush_error_omits_arbitrary_exception_text() -> None:
     secret = "x" * 1_000_000
     error = FlushError([[secret]], [ValueError(secret)])
     message = str(error)
-    assert message.startswith("1 batch (1 item) failed to flush: ValueError('xxx")
-    assert message.endswith("...")
-    assert len(message) == len("1 batch (1 item) failed to flush: ") + 200
+    assert message == "1 batch (1 item) failed to flush"
 
 
 def test_flush_error_survives_an_error_whose_repr_raises() -> None:
@@ -93,7 +94,7 @@ def test_flush_error_survives_an_error_whose_repr_raises() -> None:
             raise RuntimeError("no repr")
 
     error = FlushError([[1], [2, 3]], [Broken(), ValueError()])
-    assert str(error) == "2 batches (3 items) failed to flush: <Broken with an unprintable repr>"
+    assert str(error) == "2 batches (3 items) failed to flush"
     assert error.batches == [[1], [2, 3]]
 
 
@@ -116,14 +117,14 @@ def test_a_broken_repr_from_the_sink_still_hands_the_batch_back() -> None:
 @pytest.mark.parametrize("name", ["on_error", "clock"])
 def test_handlers_that_are_not_callable_are_refused_at_once(name: str) -> None:
     options: dict[str, object] = {"max_items": 1, "max_seconds": 1.0, name: 5}
-    with pytest.raises(TypeError, match=f"^{name} must be callable, not int$"):
+    with pytest.raises(TypeError, match=f"^{name} must be callable$"):
         TimedBatcher(print, background=False, flush_at_exit=False, **options)  # type: ignore[arg-type]
-    with pytest.raises(TypeError, match=f"^{name} must be callable, not int$"):
+    with pytest.raises(TypeError, match=f"^{name} must be callable$"):
         AsyncTimedBatcher(print, **options)  # type: ignore[arg-type]
     if name == "clock":
-        with pytest.raises(TypeError, match=r"^clock must be callable, not int$"):
+        with pytest.raises(TypeError, match=r"^clock must be callable$"):
             batched_by_time([1], 1, 1.0, clock=5)  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match=r"^clock must be callable, not int$"):
+        with pytest.raises(TypeError, match=r"^clock must be callable$"):
             abatched_by_time(_nothing(), 1, 1.0, clock=5)  # type: ignore[arg-type]
 
 

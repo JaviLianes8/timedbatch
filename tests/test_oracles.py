@@ -27,9 +27,7 @@ def test_count_only_batching_matches_more_itertools_chunked() -> None:
         assert list(batched_by_time(data, size, math.inf)) == expected
 
 
-def test_reactivex_windows_run_on_a_fixed_schedule_and_timedbatch_ages_from_the_first_item() -> (
-    None
-):
+def test_reactivex_windows_start_before_the_first_item_arrives() -> None:
     operators = pytest.importorskip("reactivex.operators")
     testing = pytest.importorskip("reactivex.testing")
     ReactiveTest, TestScheduler = testing.ReactiveTest, testing.TestScheduler
@@ -69,3 +67,23 @@ def test_reactivex_windows_run_on_a_fixed_schedule_and_timedbatch_ages_from_the_
         batcher.poll()
     # Each batch is due 500 ticks after its own first item; nothing is sent while empty.
     assert ours == [(710, ["a", "b"]), (1400, ["c"])]
+
+
+def test_reactivex_count_flush_starts_a_new_window_timer() -> None:
+    operators = pytest.importorskip("reactivex.operators")
+    testing = pytest.importorskip("reactivex.testing")
+    scheduler = testing.TestScheduler()
+    source = scheduler.create_hot_observable(
+        testing.ReactiveTest.on_next(201, "a"),
+        testing.ReactiveTest.on_next(202, "b"),
+        testing.ReactiveTest.on_next(209, "c"),
+    )
+    observed = scheduler.start(
+        lambda: source.pipe(operators.buffer_with_time_or_count(timespan=10, count=2)),
+        disposed=213,
+    )
+    assert [
+        (message.time, message.value.value)
+        for message in observed.messages
+        if message.value.kind == "N"
+    ] == [(202, ["a", "b"]), (212, ["c"])]

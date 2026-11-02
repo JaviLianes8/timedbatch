@@ -77,7 +77,7 @@ batcher.add("kept")
         [sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=60, check=False
     )
 
-    assert "FlushError: 1 batch (1 item) failed to flush: ValueError('sink down')" in result.stderr
+    assert "FlushError: 1 batch (1 item) failed to flush" in result.stderr
 
 
 def test_close_unregisters_the_exit_hook(monkeypatch: pytest.MonkeyPatch) -> None:

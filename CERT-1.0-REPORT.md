@@ -25,11 +25,11 @@ Progress:
 
 | # | Item | Result |
 | --- | --- | --- |
-| 1 | Public API reviewed for stability | PASS: the seven names, signatures, parameter names and defaults of 0.2.0 kept and pinned by `tests/test_contract_api.py`; behaviour changes in the CHANGELOG |
+| 1 | Public API reviewed for stability | PASS: the seven names, parameter names and defaults kept; widened numeric annotations pinned by `tests/test_contract_api.py`; behaviour changes in the CHANGELOG |
 | 2 | `__all__` exact, no private imports in docs | PASS: every public name reports `timedbatch` as its module |
 | 3 | Docstrings with runnable examples | PASS: all seven, run by `tests/test_doctests.py`; README (6) and GUIDE (2) examples run by `tests/test_docs.py` |
 | 4 | Typed end to end | PASS: `mypy --strict src tests`, `py.typed`, consumer snippet checked by mypy; `FlushError.batches` is `list[list[Any]]`, documented |
-| 5 | Typed, documented, bounded errors | PASS: errors table in README and GUIDE; messages never include items; `FlushError` quotes at most 200 characters of the first error and survives a raising `repr` |
+| 5 | Typed, documented, bounded errors | PASS: errors table in README and GUIDE; count-only `FlushError` diagnostics, no sink exception formatting or chaining; see QA round 1 |
 | 6 | Contract tests of every public name | PASS |
 | 7 | Real ground truth | PASS: CPython v3.14.0 sources fetched (hash manifest), the C `itertools.batched`, more-itertools 11.2.1, reactivex 6.1.0 |
 | 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder; upgrade from actual PyPI 0.2.0; no CLI |
@@ -103,9 +103,9 @@ truth exists it is used:
   timedbatch refuses `True` as a count on purpose (asserted).
 - more-itertools 11.2.1 `chunked`: 2,000 seeded inputs, identical.
 - reactivex 6.0.0 `buffer_with_time_or_count` on a virtual-time scheduler: its windows
-  close on a fixed schedule from subscription and emit empty lists, while timedbatch
-  ages each batch from its first item and sends nothing while idle. This is the
-  comparison the README makes, asserted by `tests/test_oracles.py`.
+  start their timer at window creation and emit empty lists, while timedbatch ages
+  each batch from its first item and sends nothing while idle. Count-triggered closures
+  open a new window and reset the timer, as verified in QA round 1 below.
 - Real program output: child interpreters prove the exit flush (`tests/test_exit.py`).
 
 ## Fuzz and hostile input (item 9)
@@ -283,3 +283,61 @@ both installed-wheel consumer tests and the PyPI upgrade test.
 `mypy --strict src tests` each exit 0. Temporary directories, build artifacts, dependency
 environments and mutation logs are kept outside the repository. Every pytest run uses
 an explicit scratch `--basetemp` and `--timeout=300`.
+
+
+## QA lenses, round 1, 2026-11-02
+
+Reviewed base: `ef35b302e4bcce852769625b35fad5b53a84c017` on `release/1.0.0`.
+Implementation commit: `fix failure recovery and numeric contracts for 1.0.0`
+(the commit containing this QA section).
+
+All 19 reported findings are addressed. Independent lens re-verification remains pending;
+this fix round does not substitute for those verdicts.
+
+| Findings | Change and contract evidence |
+| --- | --- |
+| A1 | Counts use `SupportsIndex`; durations and timeouts include `Decimal`, `Fraction` and `Real`. The strict numeric-consumer contract covers all four interfaces and all timeout methods. |
+| A2, B1 | Retained failures count toward `pending` and `max_pending` until handback. Separate delivery completion counters keep flush and capacity waits working. Sync and async contracts cover retained items, waiting producers, exactly-once handback and final zero pending. The seeded accounting model now counts settled items. |
+| A3 | `TimedBatcher.add` documents that synchronous sink or handler interrupts may escape after acceptance, with later failure handback. |
+| A4, B2 | `closed` reconciles stopped async tasks without consuming failures. The cancellation contract checks repeated property reads and recovery of both attempted and buffered items. |
+| A5, C-02 | Reporting never formats original errors, and the ledger is cleared only after report construction succeeds. Both batchers retain recovery data after a simulated construction failure; interrupting `repr` cannot discard it. |
+| A6, C-01 | `FlushError` messages contain only batch and item counts. Original exceptions remain in `errors`; automatic cause and context chaining are suppressed, including stopped-task `BatcherClosed`. Direct and sink-driven contracts check secret-bearing errors and default traceback output. README, GUIDE, doctests and CHANGELOG describe the confidentiality boundary. |
+| A7 | README describes window creation and count-triggered timer resets. The ReactiveX scheduler contract observes count closure at 202 and the next timeout at 212, rather than 210. |
+| B3 | Positive float underflow rounds up to the smallest positive float. Contracts cover Decimal and Fraction across all four interfaces and an injected-clock boundary. |
+| C-03 | No user exception formatting occurs during reporting under the lock. A bounded subprocess contract exercises an exception whose `repr` reads `pending`. |
+| C-04 | Validation messages omit dynamic type names. Contracts use long, secret-bearing type names for count, window, pending, callback and async-source rejection. |
+| C-05 | `aiter()` validates async sources at construction, with a bounded `TypeError` for malformed return values. Four malformed protocols are covered. |
+| E-01 | A deterministic async iterator contract asserts complete batches for arrivals at 0, 5 and 5 with a five-second window. |
+| E-02 | Three distinct errors are checked by identity against every corresponding batch. |
+| E-03, E-04 | Destructive, failing error handlers cannot change recovery copies. Contracts cover the synchronous batcher and both plain and async handlers in the async batcher, including pending and exactly-once handback. |
+
+### Regression and mutation evidence
+
+Before implementation changes, the new focused contracts reported **29 failed, 12 passed**.
+After the fixes they reported **41 passed**. The mutation checks ran sequentially in an
+isolated scratch copy; each mutation failed with an assertion, not a timeout.
+
+| Reviewer mutation | Contract that now rejects it |
+| --- | --- |
+| M06: async age `>=` becomes `>` | `test_async_iterator_flushes_at_exact_age` |
+| M32: reverse errors after the first | `test_direct_report_suppresses_implicit_context_and_keeps_all_associations` |
+| M34: synchronous handler receives retained list | `test_sync_handler_cannot_destroy_recovery_copy` |
+| M35: async batcher's handler receives retained list | `test_async_handler_cannot_destroy_recovery_copy`, both handler forms |
+
+### Gates
+
+On CPython 3.14.6: `ruff format --check .`, `ruff check .`, `mypy --strict src`
+and `mypy --strict src tests` each exit 0. The full suite exits 0 with **1296 passed**,
+including wheel/sdist inspection, installed-wheel consumers, upgrade from PyPI 0.2.0,
+fetched upstream sources and both reference packages. Every pytest run uses a
+300-second per-test timeout and a scratch basetemp. All Python files remain at most
+200 lines. README/GUIDE examples and public doctests pass.
+
+The first full run was stopped after identifying an old test that waited for failed
+items to disappear from `pending`. Both old delivery-failure waits now synchronize on
+delivery completion and assert that retained items stay pending. The final full run
+includes these updated contracts.
+
+### Disputed findings
+
+None.

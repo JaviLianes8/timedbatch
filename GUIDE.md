@@ -26,11 +26,12 @@ which they were accepted.
   negative counts raise `ValueError`.
 - `max_seconds` takes any real number (`int`, `float`, `Fraction`, `Decimal`) greater
   than 0. `math.inf`, or a number too large for a float, means count only. NaN raises
-  `ValueError`.
+  `ValueError`. Positive values that underflow during float conversion are rounded up
+  to the smallest positive float.
 - `max_pending`, when given, must be at least `max_items`, so a full batch always fits.
 - A `timeout` argument is `None` (wait as long as needed), a real number of seconds
   (zero or negative means "do not wait"), or a positive number too large for a float
-  (no limit).
+  (no limit). Positive underflow uses the same rounding rule as `max_seconds`.
 - `flush`, `on_error` and `clock` must be callable. All of this is checked when you
   create the batcher or call the function, before anything runs.
 
@@ -49,7 +50,8 @@ waiting. The read in flight is kept across those flushes (it is never cancelled 
 flush), so no item is lost. Closing the iterator early (`aclose()` or
 `contextlib.aclosing`) cancels that read: an item it had already taken from the source is
 dropped, together with the partial batch. Each read runs in its own task, so context
-variables set by the source do not carry from one item to the next.
+variables set by the source do not carry from one item to the next. A malformed
+`__aiter__` return value raises `TypeError` when the batching iterator is created.
 
 ## Threads: `TimedBatcher`
 
@@ -65,9 +67,12 @@ batches to `flush(batch)`, one at a time and in order. Each call gets its own li
 - `poll()` reports failures not yet reported; without a thread it also delivers what is
   due.
 - `pending` counts items accepted and not yet delivered or handed back; `closed` says
-  whether `close` was called.
+  whether `close` was called. Retained failed batches remain pending until a reporting
+  call hands them back; a successful `on_error` call settles its batch on return.
 - `max_pending` caps `pending`: `add` waits for room, up to `timeout`, then raises
-  `BatcherFull`. Waiting uses the real clock even when you inject one.
+  `BatcherFull`. If a delivery fails while `add` waits, it raises `FlushError` with
+  the failed items before accepting the new item. Waiting uses the real clock even
+  when you inject one.
 - Inside the flush function, `add` is allowed (the item joins a later batch), but an
   `add` that would have to wait raises `BatcherFull`, and `flush`, `poll` and `close`
   raise `RuntimeError` instead of deadlocking.
@@ -100,8 +105,8 @@ Every accepted item is delivered once or handed back once, never both and never 
   `FlushError` with that error.
 - Without `on_error`, failed batches are kept and raised as one `FlushError` by the next
   `add`, `poll`, `flush`, `close` or `aclose`. Its `batches` and `errors` line up, in
-  delivery order; the first error is also its `__cause__`. A `FlushError` raised by `add`
-  means the new item was not accepted. It pickles.
+  delivery order. The original errors are not chained into tracebacks. A `FlushError`
+  raised by `add` means the new item was not accepted. It pickles.
 - An interrupt (`KeyboardInterrupt`, `SystemExit`) inside the flush function is never
   passed to `on_error`. With a background thread its batch comes back in the next
   `FlushError`; with `background=False` it passes through the call that was delivering,
@@ -140,15 +145,18 @@ print(attempts)  # [[1, 2], [1, 2], [3]]
 | Exception | Raised by | Meaning |
 |---|---|---|
 | `FlushError` | `add`, `poll`, `flush`, `close`, `aclose` | Earlier batches failed; from `add`, the new item was not accepted. |
-| `BatcherClosed` (a `RuntimeError`) | `add` | Closed, or the async flush task stopped (then it is chained to the reason). |
+| `BatcherClosed` (a `RuntimeError`) | `add` | Closed, or the async flush task stopped; its reason is handed back in `FlushError.errors`. |
 | `BatcherFull` (a `TimeoutError`) | `add` | No room under `max_pending` within `timeout`, or no room inside the flush function. |
 | `TimeoutError` | `flush`, `close` | The work did not finish within `timeout`. |
 | `RuntimeError` | `flush`, `poll`, `close`, `aclose` | Called from inside the flush function. |
 | `TypeError`, `ValueError` | every entry point, `timeout` arguments | Invalid limit, handler or timeout. |
 
-The library's own messages never include your items. A `FlushError` quotes at most 200
-characters of the first error's `repr`, and an error whose `repr` raises is named by its
-type instead.
+Library-generated diagnostics omit item values, dynamic type names and arbitrary exception
+text. `FlushError` reports only batch and item counts and suppresses exception chaining.
+It never calls the original errors' `repr` or `str`; they remain in `errors` for explicit
+inspection. Failed batches remain retained if report construction fails. This protects
+default error messages and exception chaining, not application logging of recovery
+attributes, source exceptions, callback interrupts, or traceback locals.
 
 ## Testing with an injected clock
 

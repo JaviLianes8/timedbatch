@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Iterable, Iterator
-from typing import TypeVar
+from typing import SupportsIndex, TypeVar
 
-from ._limits import check_callables, check_limits
+from ._limits import Seconds, check_callables, check_limits
 
 _T = TypeVar("_T")
 
 
 def batched_by_time(
     iterable: Iterable[_T],
-    max_items: int,
-    max_seconds: float,
+    max_items: SupportsIndex,
+    max_seconds: Seconds,
     *,
     clock: Callable[[], float] = time.monotonic,
 ) -> Iterator[list[_T]]:

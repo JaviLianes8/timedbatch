@@ -16,7 +16,7 @@ OUTPUTS = [
     ["insert [0, 1]", "insert [2, 3]", "insert [4]"],
     [
         "[['order-1', 'order-2']]",
-        "1 batch (2 items) failed to flush: ConnectionError('database is down')",
+        "1 batch (2 items) failed to flush",
     ],
     ["[]", "[['x']]"],
     ["[1, 2]", "[3]"],

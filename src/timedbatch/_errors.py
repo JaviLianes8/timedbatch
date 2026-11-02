@@ -4,10 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-# The message quotes the first error, which may hold a whole payload or a connection
-# string: keep it short enough to log.
-_QUOTE_LIMIT = 200
-
 
 class FlushError(Exception):
     """One or more batches could not be delivered.
@@ -15,14 +11,14 @@ class FlushError(Exception):
     ``batches`` holds every failed batch, in delivery order, and ``errors`` the exception
     each one raised, so the caller can retry or store them: no item is dropped silently.
     The batches hold the items exactly as they were added (``list[list[Any]]``: an
-    exception type cannot carry the batcher's item type). The first error is also the
-    ``__cause__``, and the message quotes at most 200 characters of its ``repr``.
+    exception type cannot carry the batcher's item type). Messages contain only counts;
+    original exceptions are available only through ``errors``, without traceback chaining.
 
     >>> from timedbatch import FlushError
     >>> error = FlushError([["a", "b"]], [ConnectionError("down")])
     >>> print(error)
-    1 batch (2 items) failed to flush: ConnectionError('down')
-    >>> error.batches, error.errors[0] is error.__cause__
+    1 batch (2 items) failed to flush
+    >>> error.batches, isinstance(error.errors[0], ConnectionError)
     ([['a', 'b']], True)
     """
 
@@ -32,11 +28,10 @@ class FlushError(Exception):
         count = sum(len(batch) for batch in batches)
         noun = "batch" if len(batches) == 1 else "batches"
         items = "item" if count == 1 else "items"
-        quoted = _quote(errors[0])
-        super().__init__(f"{len(batches)} {noun} ({count} {items}) failed to flush: {quoted}")
+        super().__init__(f"{len(batches)} {noun} ({count} {items}) failed to flush")
         self.batches = batches
         self.errors = errors
-        self.__cause__ = errors[0]
+        self.__suppress_context__ = True
 
     def __reduce__(self) -> tuple[Any, ...]:
         return (type(self), (self.batches, self.errors))
@@ -74,12 +69,3 @@ class BatcherFull(TimeoutError):
     >>> gate.set()
     >>> batcher.close()
     """
-
-
-def _quote(error: BaseException) -> str:
-    try:
-        text = repr(error)
-    except Exception:
-        # A broken __repr__ must not turn a report of failed batches into another error.
-        text = f"<{type(error).__name__} with an unprintable repr>"
-    return text if len(text) <= _QUOTE_LIMIT else text[: _QUOTE_LIMIT - 3] + "..."

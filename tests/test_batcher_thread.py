@@ -155,9 +155,8 @@ def test_a_background_failure_is_raised_by_the_next_call_without_accepting() -> 
     )
     batcher.add(1)
     assert failed.wait(WAIT)
-    deadline = time.monotonic() + WAIT
-    while batcher.pending and time.monotonic() < deadline:
-        time.sleep(0.01)
+    batcher._wait_until_done(1, WAIT)
+    assert batcher.pending == 1
 
     with pytest.raises(FlushError) as caught:
         batcher.add(2)

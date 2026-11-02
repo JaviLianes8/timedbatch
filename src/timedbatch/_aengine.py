@@ -50,7 +50,7 @@ class AsyncEngine(Generic[T]):
         self._reap()
         self._ledger.raise_any()
         if self._stopped is not None:
-            raise BatcherClosed("the flush task stopped") from self._stopped
+            raise BatcherClosed("the flush task stopped") from None
         if self._closed:
             raise BatcherClosed("the batcher is closed")
 

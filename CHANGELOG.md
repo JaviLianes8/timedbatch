@@ -28,9 +28,21 @@ from here on.
   instead of `OverflowError`; huge negative timeouts mean do not wait.
 - Signaling Decimal NaNs now raise `ValueError` with the same bounded parameter message
   as other NaNs.
-- The `FlushError` message quotes at most 200 characters of the first error's `repr`, and
-  a `repr` that raises no longer turns the report of failed batches into another error
-  (the batches were lost in that case).
+- `FlushError` messages contain only batch and item counts. Sink exceptions are kept in
+  `errors`, without `__cause__` or implicit traceback chaining. `BatcherClosed` after
+  task termination also omits chaining. Reporting never calls exception `repr` or `str`,
+  avoiding disclosure of sink messages, formatting interrupts and lock reentry deadlocks.
+  The failure ledger is cleared only after report construction succeeds.
+- `pending` and `max_pending` include retained failed items until handback. Delivery
+  completion remains separate so `flush` and shutdown finish, and waiting producers
+  receive retained failures before accepting new items.
+- `AsyncTimedBatcher.closed` reconciles stopped tasks without consuming failed batches.
+- Count annotations accept `SupportsIndex`; duration and timeout annotations include
+  `Decimal`, `Fraction` and real numeric types already accepted at runtime.
+- Positive durations and timeouts that underflow float conversion round up to the
+  smallest positive float, instead of rejecting a positive duration as zero.
+- Validation messages omit dynamic type names. Malformed async iterators now raise a
+  bounded `TypeError` at construction instead of a later `AttributeError`.
 - The public names report `timedbatch` as their module, so their `repr` and pickles no
   longer depend on private module names.
 

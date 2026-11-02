@@ -66,7 +66,7 @@ def test_integer_like_counts_and_decimal_windows_are_accepted() -> None:
         def __index__(self) -> int:
             return 2
 
-    batches = list(batched_by_time(range(3), Index(), Decimal("1.5")))  # type: ignore[arg-type]
+    batches = list(batched_by_time(range(3), Index(), Decimal("1.5")))
 
     assert batches == [[0, 1], [2]]
 

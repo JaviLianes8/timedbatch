@@ -47,7 +47,7 @@ def test_without_on_error_the_failed_batch_comes_back_in_a_flush_error() -> None
         batcher.add(3)
 
     assert caught.value.batches == [[1, 2]]
-    assert isinstance(caught.value.__cause__, ValueError)
+    assert isinstance(caught.value.errors[0], ValueError)
     assert batcher.pending == 0  # 3 was not accepted
     batcher.add(3)  # reported once, then the batcher carries on
     assert batcher.pending == 1

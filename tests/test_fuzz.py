@@ -92,7 +92,7 @@ def test_the_thread_free_batcher_settles_every_item_once(seed: int) -> None:
                 clock.now += rng.choice([0.1, 0.5, 2.0])
         except FlushError as error:
             ledger.caught(error)
-        assert batcher.pending == len(accepted) - sum(map(len, ledger.calls))
+        assert batcher.pending == len(accepted) - len(ledger.delivered) - len(ledger.handed_back)
         ledger.check(accepted, size, finished=False)
     try:
         batcher.close()
@@ -128,9 +128,7 @@ async def _async_run(rng: random.Random, ledger: Ledger) -> tuple[list[int], int
             ledger.caught(error)
         except BatcherFull:
             pass
-        # A batch whose async delivery is still running is called but not yet settled.
-        unsettled = batcher.pending - (len(accepted) - sum(map(len, ledger.calls)))
-        assert 0 <= unsettled <= size
+        assert batcher.pending == len(accepted) - len(ledger.delivered) - len(ledger.handed_back)
         ledger.check(accepted, size, finished=False)
     try:
         await batcher.aclose()

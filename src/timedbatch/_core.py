@@ -64,16 +64,19 @@ class Ledger(Generic[T]):
     def __init__(self) -> None:
         self._batches: list[list[T]] = []
         self._errors: list[BaseException] = []
+        self.pending = 0
 
     def record(self, error: BaseException, batch: list[T]) -> None:
         self._batches.append(batch)
         self._errors.append(error)
+        self.pending += len(batch)
 
     def raise_any(self) -> None:
         if self._batches:
-            batches, errors = self._batches, self._errors
+            report = FlushError(list(self._batches), list(self._errors))
             self._batches, self._errors = [], []
-            raise FlushError(list(batches), errors)
+            self.pending = 0
+            raise report from None
 
 
 def call_sink(

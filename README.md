@@ -84,8 +84,9 @@ What it promises:
 - **Failures.** Give `on_error(exc, batch)` to decide what to do with a failed batch.
   Without it, failed batches are kept and raised as a `FlushError` (with `.batches` and
   `.errors`) by the next `add`, `poll`, `flush` or `close`.
-- **Back-pressure.** `max_pending` caps items accepted but not yet delivered. `add` waits
-  for room, or raises `BatcherFull` (a `TimeoutError`) after `timeout` seconds.
+- **Back-pressure.** `max_pending` caps items accepted but not yet delivered or handed back,
+  including retained failures. `add` reports those failures before accepting a new item;
+  otherwise it waits for room, or raises `BatcherFull` (a `TimeoutError`) after `timeout` seconds.
 - **Shutdown.** `close()` (or leaving the `with` block) delivers the rest and stops the
   thread; later calls to `add` raise `BatcherClosed`. A batcher you forget to close, or
   whose `close(timeout=...)` timed out, is closed when the interpreter exits normally,
@@ -112,7 +113,7 @@ try:
     batcher.close()
 except FlushError as error:
     print(error.batches)  # [['order-1', 'order-2']]
-    print(error)  # 1 batch (2 items) failed to flush: ConnectionError('database is down')
+    print(error)  # 1 batch (2 items) failed to flush
 ```
 
 ### Deterministic tests
@@ -205,18 +206,21 @@ asyncio.run(main())
 | `RuntimeError` | `flush`, `poll`, `close`, `aclose` | Called from inside the flush function. |
 | `TypeError`, `ValueError` | every entry point, `timeout` arguments | A limit, a handler or a timeout is invalid; nothing was created or accepted. |
 
-The library's own messages never include your items; a `FlushError`
-quotes at most 200 characters of the first error's `repr`.
+Library-generated diagnostics omit item values, dynamic type names and sink exception
+text. `FlushError` reports only batch and item counts, without chaining sink exceptions
+into its traceback. Original exceptions remain in `.errors` for explicit inspection.
+Logging recovery attributes, source exceptions, callback interrupts or traceback locals
+can still expose application data.
 
 ## Why
 
 Count-based batching is everywhere: `itertools.batched` (Python 3.12+) and
 `more-itertools` `chunked` cut an iterable into groups of `n`, but neither closes a batch
 on elapsed time. `reactivex` has `buffer_with_time_or_count`, which bounds both, but its
-time windows run on a fixed schedule from the moment you subscribe, so a batch can close
-an instant after its first item arrived, and it emits empty lists while the source is
-quiet; it also brings the observable model and its schedulers. Code that ships logs, events or
-metrics usually wants the latency bound measured from the oldest waiting item, with
+timer starts when each window opens, including a new window after a count-triggered
+flush. A batch can therefore close an instant after its first item arrived, and it emits
+empty lists while the source is quiet; it also brings the observable model and its
+schedulers. Code that ships logs, events or metrics usually wants the latency bound measured from the oldest waiting item, with
 nothing sent while idle, and it needs the rest done right: flushing an idle buffer, not
 losing items when the sink fails or the program exits, slowing producers down when the
 sink falls behind. `timedbatch` does that once, with tests that run hundreds of random

@@ -6,17 +6,17 @@ import asyncio
 import math
 import time
 from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator, Callable
-from typing import Any, TypeVar
+from typing import Any, SupportsIndex, TypeVar
 
-from ._limits import check_callables, check_limits
+from ._limits import Seconds, check_callables, check_limits
 
 _T = TypeVar("_T")
 
 
 def abatched_by_time(
     aiterable: AsyncIterable[_T],
-    max_items: int,
-    max_seconds: float,
+    max_items: SupportsIndex,
+    max_seconds: Seconds,
     *,
     clock: Callable[[], float] = time.monotonic,
 ) -> AsyncGenerator[list[_T], None]:
@@ -49,9 +49,11 @@ def abatched_by_time(
     """
     items, seconds, _ = check_limits(max_items, max_seconds)
     check_callables(clock=clock)
-    if not isinstance(aiterable, AsyncIterable):
-        raise TypeError(f"expected an async iterable, not {type(aiterable).__name__}")
-    return _abatches(aiterable.__aiter__(), items, seconds, clock)
+    try:
+        source = aiter(aiterable)
+    except TypeError:
+        raise TypeError("expected a valid async iterable") from None
+    return _abatches(source, items, seconds, clock)
 
 
 async def _abatches(

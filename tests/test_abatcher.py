@@ -146,14 +146,17 @@ def test_without_on_error_the_failed_batch_comes_back_once() -> None:
 
 
 def test_a_failure_is_raised_by_add_before_accepting() -> None:
+    attempted = asyncio.Event()
+
     async def sink(batch: list[int]) -> None:
+        attempted.set()
         raise ValueError("down")
 
     async def main() -> None:
         batcher = AsyncTimedBatcher(sink, max_items=1, max_seconds=60.0)
         await batcher.add(1)
-        while batcher.pending:
-            await asyncio.sleep(0.01)
+        await attempted.wait()
+        assert batcher.pending == 1
         with pytest.raises(FlushError):
             await batcher.add(2)
         assert batcher.pending == 0
