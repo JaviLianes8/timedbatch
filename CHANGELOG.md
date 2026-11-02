@@ -56,6 +56,8 @@ from here on.
 
 ### Added
 
+- A regression contract checks that complete async-source validation tracebacks omit
+  hostile type names and payloads, preserving the existing exception suppression.
 - A runnable example in the docstring of every public name, run by the test suite.
 - A guide (`GUIDE.md`) with the full contract: delivery rules, errors, threads and
   asyncio, shutdown and testing with an injected clock.

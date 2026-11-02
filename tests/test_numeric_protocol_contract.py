@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import traceback
 from collections.abc import AsyncIterator
 from decimal import Decimal
 from fractions import Fraction
@@ -82,11 +83,16 @@ def test_malformed_async_iterators_raise_typeerror(result: object) -> None:
 
 
 def test_async_source_rejection_does_not_echo_dynamic_type_names() -> None:
-    hostile = type("password=secret-" + "x" * 100_000, (), {})()
+    secret = "password=private-example"
+    type_name = secret + "-" + "x" * 100_000
+    hostile = type(type_name, (), {})()
     with pytest.raises(TypeError) as caught:
         abatched_by_time(hostile, 1, 1)
-    assert "secret" not in str(caught.value)
-    assert len(str(caught.value)) < 80
+    error = caught.value
+    assert str(error) == "expected a valid async iterable"
+    rendered = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+    assert type_name not in rendered
+    assert secret not in rendered
 
 
 def test_async_iterator_flushes_at_exact_age() -> None:
