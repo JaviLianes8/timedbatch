@@ -56,6 +56,8 @@ from here on.
 
 ### Added
 
+- Regression contracts fully consume async sources with custom `__index__` counts
+  and `Decimal` durations, checking count-limited batches and the final remainder.
 - A regression contract checks that complete async-source validation tracebacks omit
   hostile type names and payloads, preserving the existing exception suppression.
 - A runnable example in the docstring of every public name, run by the test suite.

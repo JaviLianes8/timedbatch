@@ -20,6 +20,36 @@ async def nothing() -> AsyncIterator[int]:
     yield
 
 
+async def three_items() -> AsyncIterator[int]:
+    for value in range(3):
+        yield value
+
+
+def test_async_iterator_consumes_index_count() -> None:
+    class Count:
+        def __index__(self) -> int:
+            return 2
+
+    async def main() -> None:
+        batches = [
+            batch async for batch in abatched_by_time(three_items(), Count(), 60, clock=lambda: 0.0)
+        ]
+        assert batches == [[0, 1], [2]]
+
+    asyncio.run(main())
+
+
+def test_async_iterator_consumes_decimal_duration() -> None:
+    async def main() -> None:
+        batches = [
+            batch
+            async for batch in abatched_by_time(three_items(), 2, Decimal("60"), clock=lambda: 0.0)
+        ]
+        assert batches == [[0, 1], [2]]
+
+    asyncio.run(main())
+
+
 @pytest.mark.parametrize("duration", [Decimal("1e-1000"), Fraction(1, 10**1000)])
 def test_positive_underflow_is_accepted_by_every_interface(duration: Any) -> None:
     assert list(batched_by_time([], 2, duration)) == []
