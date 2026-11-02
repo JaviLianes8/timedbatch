@@ -59,7 +59,7 @@ def check_timeout(timeout: object) -> float | None:
 
 
 def check_callables(**functions: object) -> None:
-    """Raise ``TypeError`` for any argument that is neither callable nor ``None``."""
+    """Require callables, allowing ``None`` only for the optional error handler."""
     for name, function in functions.items():
-        if function is not None and not callable(function):
+        if not callable(function) and not (name == "on_error" and function is None):
             raise TypeError(f"{name} must be callable, not {type(function).__name__}")

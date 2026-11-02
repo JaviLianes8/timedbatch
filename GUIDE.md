@@ -29,7 +29,8 @@ which they were accepted.
   `ValueError`.
 - `max_pending`, when given, must be at least `max_items`, so a full batch always fits.
 - A `timeout` argument is `None` (wait as long as needed), a real number of seconds
-  (zero or negative means "do not wait"), or a number too large for a float (no limit).
+  (zero or negative means "do not wait"), or a positive number too large for a float
+  (no limit).
 - `flush`, `on_error` and `clock` must be callable. All of this is checked when you
   create the batcher or call the function, before anything runs.
 

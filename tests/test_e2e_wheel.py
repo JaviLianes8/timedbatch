@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 from e2e_program import PROGRAM
+from upgrade_program import PROGRAM as UPGRADE_PROGRAM
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -94,6 +95,33 @@ def test_installed_wheel_end_to_end(dist: Path, tmp_path: Path) -> None:
     # Run from an empty folder so the source tree cannot shadow the install.
     work = tmp_path / "work"
     work.mkdir()
+    result = _run(python, "-I", "-c", PROGRAM, cwd=work)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["e2e ok", "exit ['late']"]
+
+
+def test_upgrade_from_pypi_020(dist: Path, tmp_path: Path) -> None:
+    previous = os.environ.get("TIMEDBATCH_PYPI_WHEEL")
+    if previous is None:
+        pytest.skip("set TIMEDBATCH_PYPI_WHEEL to the downloaded PyPI 0.2.0 wheel")
+    env_dir = tmp_path / "venv"
+    venv.create(env_dir, with_pip=True)
+    python = env_dir / ("Scripts" if sys.platform == "win32" else "bin") / "python"
+    work = tmp_path / "work"
+    work.mkdir()
+    installed = _run(python, "-m", "pip", "install", "--no-deps", previous)
+    assert installed.returncode == 0, installed.stderr
+    version = _run(python, "-I", "-c", "import timedbatch; print(timedbatch.__version__)")
+    assert version.stdout.strip() == "0.2.0"
+    before = _run(python, "-I", "-c", UPGRADE_PROGRAM, cwd=work)
+    assert before.returncode == 0, before.stderr
+    installed = _run(python, "-m", "pip", "install", "--no-deps", "--upgrade", _wheel(dist))
+    assert installed.returncode == 0, installed.stderr
+    version = _run(python, "-I", "-c", "import timedbatch; print(timedbatch.__version__)")
+    assert version.stdout.strip() == "1.0.0"
+    after = _run(python, "-I", "-c", UPGRADE_PROGRAM, cwd=work)
+    assert after.returncode == 0, after.stderr
+    assert after.stdout == before.stdout
     result = _run(python, "-I", "-c", PROGRAM, cwd=work)
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == ["e2e ok", "exit ['late']"]

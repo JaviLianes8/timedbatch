@@ -1,9 +1,11 @@
 # timedbatch 1.0.0 certification report
 
-The 1.0.0 certification bar (19 items) applied to timedbatch. Nothing was ever published to
-PyPI (`https://pypi.org/pypi/timedbatch/json` answered 404 on 2026-10-23), so 1.0.0 is the
-first release there and there is no upgrade path to test; every change against `main`
-at 1a0c415 (version 0.2.0) is still listed in the CHANGELOG.
+The 1.0.0 certification bar (19 items) applied to timedbatch. On 2026-11-02,
+`https://pypi.org/pypi/timedbatch/json` lists 0.2.0, uploaded on 2026-11-01. Its
+package files are byte-for-byte identical to `main` at 1a0c415. The installed-wheel
+upgrade test covers this actual release; every behavior change is in the CHANGELOG.
+The earlier preparation evidence below is retained, with current results recorded in
+the 2026-11-02 section. Five QA lenses and independent review remain pending.
 
 Progress:
 - [x] Branch `release/1.0.0` created from `main` (1a0c415, 0.2.0)
@@ -29,18 +31,18 @@ Progress:
 | 4 | Typed end to end | PASS: `mypy --strict src tests`, `py.typed`, consumer snippet checked by mypy; `FlushError.batches` is `list[list[Any]]`, documented |
 | 5 | Typed, documented, bounded errors | PASS: errors table in README and GUIDE; messages never include items; `FlushError` quotes at most 200 characters of the first error and survives a raising `repr` |
 | 6 | Contract tests of every public name | PASS |
-| 7 | Real ground truth | PASS: CPython v3.14.0 sources fetched (hash manifest), the C `itertools.batched`, more-itertools 11.2.1, reactivex 6.0.0 |
-| 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder; no CLI; no PyPI release to upgrade from |
+| 7 | Real ground truth | PASS: CPython v3.14.0 sources fetched (hash manifest), the C `itertools.batched`, more-itertools 11.2.1, reactivex 6.1.0 |
+| 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder; upgrade from actual PyPI 0.2.0; no CLI |
 | 9 | Seeded fuzz, no crash, hang or blowup | PASS |
-| 10 | Supported Pythons | PASS: CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2 and 3.14.2t |
+| 10 | Supported Pythons | PASS: CPython 3.14.6 is the only available interpreter on this laptop; earlier matrix retained below; other supported versions unavailable here |
 | 11 | README and `twine check` | PASS: `twine check --strict` on wheel and sdist, absolute links (tested), badge, errors, honest comparison |
-| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-23 |
+| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-11-02 |
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | pending |
 | 17 | PR and trace guard | PR #3 from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 40 author mutants, 39 killed at once, 1 survivor killed by a new contract |
+| 18 | Contracts bite (mutations) | PASS: original 40 mutants retained; ten more on the updated validation module, all killed |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0
@@ -182,7 +184,8 @@ fails with it (checked with the mutant applied) and passes without it.
   anything. Sdist: sources, tests, scripts, README, GUIDE, CHANGELOG, CONTRIBUTING,
   LICENSE and the upstream manifest only (no fetched files, no `.github`, no reports).
   Both asserted by `tests/test_e2e_wheel.py`; `twine check --strict` passes on both.
-- At d1bcf97 on this PC, from a fresh clone: the wheel and sdist built once, then for
+- Earlier run at d1bcf97 on the original certification PC, from a fresh clone:
+  the wheel and sdist built once, then for
   each interpreter the sdist's own suite with `src` removed, run against the wheel
   installed in a fresh venv, with the fetched sources, both oracle packages,
   `TIMEDBATCH_E2E=1` and `TIMEDBATCH_WHEEL` (the e2e tests install that wheel in another
@@ -191,10 +194,92 @@ fails with it (checked with the mutant applied) and passes without it.
   3.12.12, 3.13.2, 3.14.2 and 3.14.2 free-threaded 1262 passed. 3.8 and 3.9 are installed
   but below `requires-python`.
 
-## Gates (item 15)
+## Earlier gates (item 15)
 
 At bda3760 (later commits change only this report and the CHANGELOG date, after which `tests/test_docs.py`, ruff and `mypy --strict src` were rerun and exit 0) on the laptop
 from a fresh clone (CPython 3.14.6), each command on its own, with the fetched sources,
 both oracle packages and `TIMEDBATCH_E2E=1`: `ruff format --check .`, `ruff check .`,
 `mypy --strict src` and `mypy --strict src tests` exit 0, and `pytest` 1262 passed
 (exit 0). The same commands at 49e6005 on Elena's PC (CPython 3.14.2): exit 0, 1261 passed.
+
+## Preparation refresh, 2026-11-02
+
+Resumed from 4ddf744 without discarding any earlier commits or evidence. Items 16, 17
+(merge and publication) and 19 remain for subsequent review. No prior lens verdicts
+or independent reviewer approval were recorded.
+
+### Published baseline and upgrade
+
+The live PyPI JSON response now lists 0.2.0, uploaded 2026-11-01T02:11:50 UTC.
+Downloaded its wheel using `pip download --no-deps timedbatch==0.2.0` and checked its
+SHA-256 against that response:
+`c56c5af7a10f5da72f7ea857a4ebbb3e3becf6fc79044d1e61f84a6f82923322`.
+Every package file matches `git show main:src/timedbatch/<file>` byte for byte.
+
+`test_upgrade_from_pypi_020` installs that wheel in a fresh venv, verifies version
+0.2.0, then installs 1.0.0 with `pip install --upgrade` and verifies the new version.
+Before and after, the same consumer program checks 2,000 seeded count-only cases,
+200 deterministic push timelines and an async sink. Outputs match exactly. A
+`FlushError` pickled by 0.2.0 loads with the same batches and errors after the upgrade.
+Finally, the complete 1.0.0 consumer program runs using `-I` from an empty directory:
+threaded and async delivery, idle flushing, closure, typed resources, bounded errors,
+plain async sinks, huge windows and a real interpreter-exit flush. No CLI is provided.
+
+### Changes and current ground truth
+
+The dated CHANGELOG now describes the upgrade and includes the previously omitted
+huge-window, timeout and signaling-NaN changes. The only new runtime change is refusing
+`clock=None` immediately, consistently across all four entry points. Optional
+`on_error=None` is unchanged. `test_none_is_not_a_clock` pins the error type and message.
+
+All five CPython v3.14.0 files were fetched again on 2026-11-02 from the URLs in
+`tests/upstream/MANIFEST.json`; sizes and hashes match. `TIMEDBATCH_UPSTREAM` now lets
+the fetch script and tests use an external directory. The manifest records today's
+fetch date; third-party content is neither committed nor included in the distributions.
+The documented recipe, literal upstream vectors, live `itertools.batched`, interpreter
+timeout semantics, more-itertools 11.2.1 and reactivex 6.1.0 all pass their comparisons.
+The existing seeded model, hostile-input and fuzz tests also pass.
+
+### Additional mutation round
+
+Ten individual mutations of the updated validation module, each in an isolated copy
+on this laptop with CPython 3.14.6, bytecode disabled and a 300-second per-test timeout.
+Each run used the clock, limit, hostile-input and API contract tests with `-x`.
+All ten exited 1 with an assertion failure; none survived or timed out. The original
+40-mutation round above is retained.
+
+| Mutant | Change | Contract that failed |
+| --- | --- | --- |
+| N1 | Allow `None` clocks again | `test_none_is_not_a_clock` |
+| N2 | Reject optional `None` error handlers | `test_none_is_not_a_clock` (wrong parameter error) |
+| N3 | Reject valid callables instead of invalid ones | `test_none_is_not_a_clock` |
+| N4 | Accept count zero | `test_every_entry_point_rejects_bad_limits_at_once` |
+| N5 | Accept boolean counts | `test_every_entry_point_rejects_bad_limits_at_once` |
+| N6 | Accept a zero window | `test_every_entry_point_rejects_bad_limits_at_once` |
+| N7 | Reverse the pending-capacity comparison | `test_max_pending_must_hold_at_least_one_batch` |
+| N8 | Skip Decimal NaN normalization | `test_every_nan_is_refused_with_the_same_message` |
+| N9 | Reverse the sign of overflowed numeric limits | `test_a_window_beyond_the_float_range_means_no_age_limit` |
+| N10 | Accept floating NaN | `test_every_entry_point_rejects_bad_limits_at_once` |
+
+### Current packaging, interpreters and gates
+
+CPython 3.14.6 is the only available interpreter on this laptop. The other entries from
+`py -0p` refer to paths that no longer exist. PATH and the standard installation and
+managed-interpreter directories contain no additional runtimes. Python 3.10, 3.11,
+3.12, 3.13 and free-threaded 3.14 could not be rerun here; the earlier matrix above is
+historical evidence, not a claim about the current laptop.
+
+The wheel was built from the sdist using `python -m build --no-isolation`. Both pass
+`twine check --strict` and the archive-content contracts. The README badge matches the
+catalogue badge exactly; all README and GUIDE examples and public doctests pass.
+All Python source files have at most 200 lines.
+
+With the fetched sources, both reference packages, `TIMEDBATCH_E2E=1`,
+`TIMEDBATCH_WHEEL` and `TIMEDBATCH_PYPI_WHEEL`, the full suite reports **1264 passed**.
+The final sdist's own suite, extracted without `src` and run against the installed
+wheel in the isolated dependency environment, also reports **1264 passed**, including
+both installed-wheel consumer tests and the PyPI upgrade test.
+`ruff format --check .`, `ruff check .`, `mypy --strict src` and
+`mypy --strict src tests` each exit 0. Temporary directories, build artifacts, dependency
+environments and mutation logs are kept outside the repository. Every pytest run uses
+an explicit scratch `--basetemp` and `--timeout=300`.

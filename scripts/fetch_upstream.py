@@ -3,6 +3,7 @@
 The files (CPython documentation sources and the CPython itertools tests at a fixed tag)
 are not part of the repository. Their tests skip until this script has fetched them; each
 download is checked against the size and sha256 in the manifest.
+Set TIMEDBATCH_UPSTREAM to store the downloads outside the source tree.
 
     python scripts/fetch_upstream.py
 """
@@ -11,15 +12,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import urllib.request
 from pathlib import Path
 
-FOLDER = Path(__file__).resolve().parents[1] / "tests" / "upstream"
-MANIFEST = FOLDER / "MANIFEST.json"
+MANIFEST = Path(__file__).resolve().parents[1] / "tests" / "upstream" / "MANIFEST.json"
+FOLDER = Path(os.environ.get("TIMEDBATCH_UPSTREAM", str(MANIFEST.parent)))
 
 
 def main() -> int:
+    FOLDER.mkdir(parents=True, exist_ok=True)
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     failed = 0
     for name, entry in manifest.items():

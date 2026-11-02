@@ -15,6 +15,7 @@ import hashlib
 import itertools
 import json
 import math
+import os
 import re
 import textwrap
 from collections.abc import Callable, Iterator
@@ -26,8 +27,9 @@ import pytest
 
 from timedbatch import batched_by_time
 
-FOLDER = Path(__file__).resolve().parent / "upstream"
-MANIFEST = json.loads((FOLDER / "MANIFEST.json").read_text(encoding="utf-8"))
+MANIFEST_PATH = Path(__file__).resolve().parent / "upstream" / "MANIFEST.json"
+MANIFEST = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+FOLDER = Path(os.environ.get("TIMEDBATCH_UPSTREAM", str(MANIFEST_PATH.parent)))
 ITERABLES: list[Any] = ["", "a", "ab", "abc", "abcd", "abcde", "abcdef", "abcdefg", None]
 SIZES: list[Any] = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, None, "hello", 2.0, True]
 

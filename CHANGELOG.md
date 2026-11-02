@@ -6,10 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-10-23
+## [1.0.0] - 2026-11-02
 
-The first release on PyPI (0.1.0 and 0.2.0 were never published there). The
-public API is now stable: the seven names in `timedbatch.__all__`, their signatures,
+Upgrades PyPI 0.2.0. The public API is now stable: the seven names in
+`timedbatch.__all__`, their signatures,
 parameter names, defaults and the exception types they raise follow Semantic Versioning
 from here on.
 
@@ -21,7 +21,13 @@ from here on.
   a batch now counts as delivered. The `flush` parameter is typed
   `Callable[[list[T]], object]`, like `on_error`.
 - Every entry point raises `TypeError` at once for an `on_error` or `clock` that is not
-  callable, instead of failing on the first batch.
+  callable, instead of failing on the first batch. `clock=None` is refused;
+  `on_error=None` still selects the default failure handling.
+- Positive integer and `Fraction` windows or timeouts beyond the float range now mean
+  no limit instead of raising `OverflowError`. Huge negative windows raise `ValueError`
+  instead of `OverflowError`; huge negative timeouts mean do not wait.
+- Signaling Decimal NaNs now raise `ValueError` with the same bounded parameter message
+  as other NaNs.
 - The `FlushError` message quotes at most 200 characters of the first error's `repr`, and
   a `repr` that raises no longer turns the report of failed batches into another error
   (the batches were lost in that case).
@@ -30,6 +36,8 @@ from here on.
 
 ### Fixed
 
+- `close(timeout=...)` at or above `threading.TIMEOUT_MAX`, including infinity, waits
+  without a deadline instead of raising `OverflowError` from the thread join.
 - Draining many waiting batches took quadratic time: each batch was cut from the front
   of a list, so the time to catch up grew with the square of the backlog. It is now
   linear.
