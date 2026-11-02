@@ -381,3 +381,48 @@ Python files remain at most 200 lines. Evidence is retained under
 ### Disputed findings
 
 None.
+
+## QA lenses, round 3, 2026-11-02
+
+Reviewed base: `c76d99c00854d59ed7dbdaac35e9271ce442e2d1` on `release/1.0.0`.
+Implementation commit: `cc31f5797fd59f8fb9b95e702d35e02f93b23ece`
+(`add async numeric consumption contracts`).
+
+Lens E confirmed E-05 fixed and reported E-06 and E-07, two missing runtime
+contracts. Both are addressed; independent lens re-verification remains pending.
+
+| Finding | Change and contract evidence |
+| --- | --- |
+| E-06 | `test_async_iterator_consumes_index_count` consumes three items using a custom count with only `__index__`, returning 2. It asserts exactly `[[0, 1], [2]]`, including the final remainder. |
+| E-07 | `test_async_iterator_consumes_decimal_duration` consumes three items with count 2 and `Decimal("60")`. It asserts exactly `[[0, 1], [2]]`; the partial batch enters timeout calculation before the next source read completes. |
+
+Both contracts inject a constant float clock and use an immediately yielding source.
+The existing implementation passes both contracts. Runtime behavior and the public
+API are unchanged; CHANGELOG records the added coverage.
+
+### Regression and mutation evidence
+
+The numeric protocol contracts pass on the original implementation: **16 passed**.
+Each reviewer mutation was applied separately in an isolated scratch copy. Both
+failed through the expected runtime operation, without a timeout or collection error.
+After restoring the source byte for byte, all **16 passed** again.
+
+| Reviewer mutation | Contract that now rejects it | Observed failure |
+| --- | --- | --- |
+| M08: forward raw `max_items` instead of normalized `items` | `test_async_iterator_consumes_index_count` | `TypeError` comparing `int >= Count` |
+| M09: forward raw `max_seconds` instead of normalized `seconds` | `test_async_iterator_consumes_decimal_duration` | `TypeError` adding `float + Decimal` in timeout calculation |
+
+### Gates
+
+On CPython 3.14.6, `ruff format --check .`, `ruff check .`, `mypy --strict src`
+and `mypy --strict src tests` each exit 0. The full suite exits 0 with **1298 passed**,
+including freshly built wheel/sdist inspection, installed-wheel consumers, upgrade
+from PyPI 0.2.0, upstream sources and both reference packages. All pytest invocations
+use a 300-second per-test timeout and scratch basetemps. Python files remain at most
+200 lines. Evidence is retained under
+`C:/lianes8-build/codex-pylib/scratch/timedbatch-cert/fix-r3/`:
+`baseline.log`, `M08.log`, `M09.log`, `restored.log` and `full.log`.
+
+### Disputed findings
+
+None.
