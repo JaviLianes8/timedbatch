@@ -16,8 +16,13 @@ pip install -r requirements-dev.txt
   `test_batcher_thread.py` and the asyncio tests (idle flushes need real waiting, with
   wide margins), `test_stress.py` (many threads and tasks), and `test_exit.py` (child
   interpreters prove the exit flush).
-- `TIMEDBATCH_E2E=1 pytest tests/test_e2e_wheel.py` builds the wheel, installs it in a
-  fresh virtual environment and drives the installed package.
+- `TIMEDBATCH_E2E=1 pytest tests/test_e2e_wheel.py` builds the wheel and the sdist,
+  inspects both, installs the wheel in a fresh virtual environment and drives the
+  installed package.
+- Ground truth: `python scripts/fetch_upstream.py` downloads the CPython sources listed in
+  `tests/upstream/MANIFEST.json` (hash checked, never committed) for
+  `tests/test_upstream.py`, and `pip install more-itertools reactivex` enables
+  `tests/test_oracles.py`. Without them those tests skip.
 - Run `scripts/check.ps1` (format, lint, types, tests) and make sure it passes.
 - One logical change per commit, imperative subject line.
 

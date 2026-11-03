@@ -26,8 +26,9 @@ reveal_type(AsyncTimedBatcher(send, max_items=2, max_seconds=1.0))
 reveal_type(FlushError([[1]], [ValueError()]).batches)
 TimedBatcher(sink, max_items=2, max_seconds=1.0).add("text")
 TimedBatcher(sink, 2, 1.0)
-AsyncTimedBatcher(sink, max_items=2, max_seconds=1.0)
+AsyncTimedBatcher(send, max_items="2", max_seconds=1.0)
 batched_by_time([1], 2, 1.0, clock=1.0)
+AsyncTimedBatcher(sink, max_items=2, max_seconds=1.0)
 """
 
 
@@ -69,3 +70,48 @@ def test_results_are_typed(mypy_output: str, line: int, expected: str) -> None:
 )
 def test_wrong_calls_are_rejected(mypy_output: str, line: int, code: str) -> None:
     assert re.search(rf"snippet\.py:{line}: error: .*\[{code}\]", mypy_output), mypy_output
+
+
+def test_a_plain_flush_function_is_accepted_by_the_async_batcher(mypy_output: str) -> None:
+    assert "snippet.py:18:" not in mypy_output, mypy_output
+
+
+def test_documented_numeric_inputs_typecheck(tmp_path: Path) -> None:
+    snippet = """
+from collections.abc import AsyncIterator
+from decimal import Decimal
+from fractions import Fraction
+from timedbatch import TimedBatcher, AsyncTimedBatcher, batched_by_time, abatched_by_time
+class Count:
+    def __index__(self) -> int:
+        return 2
+def sink(batch: list[int]) -> None: ...
+async def source() -> AsyncIterator[int]:
+    yield 1
+for seconds in (Decimal("1"), Fraction(1, 2), 1, 1.0):
+    batched_by_time([1], Count(), seconds)
+    abatched_by_time(source(), Count(), seconds)
+    out = TimedBatcher(sink, max_items=Count(), max_seconds=seconds, max_pending=Count())
+    out.add(1, timeout=seconds)
+    out.flush(timeout=seconds)
+    out.close(timeout=seconds)
+    async_out = AsyncTimedBatcher(sink, max_items=Count(), max_seconds=seconds, max_pending=Count())
+    async def use() -> None:
+        await async_out.add(1, timeout=seconds)
+        await async_out.flush(timeout=seconds)
+"""
+    target = tmp_path / "numeric_consumer.py"
+    target.write_text(snippet, encoding="utf-8")
+    config = tmp_path / "mypy.ini"
+    config.write_text(f"[mypy]\nmypy_path = {SRC.as_posix()}\n", encoding="utf-8")
+    out, err, code = api.run(
+        [
+            "--strict",
+            "--config-file",
+            str(config),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            str(target),
+        ]
+    )
+    assert code == 0, out + err

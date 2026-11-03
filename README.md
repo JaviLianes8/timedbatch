@@ -1,5 +1,7 @@
 # timedbatch
 
+[![Lianes8 Certified](https://lianes8studio.com/certified/lianes8-certified-badge.svg)](https://lianes8studio.com/certified)
+
 Batch items by a max count and a max age, flushing when either limit is hit. Typed, no
 dependencies, for plain iterables, for threads and for asyncio.
 
@@ -20,7 +22,8 @@ pip install timedbatch
 
 A batch is delivered as soon as it holds `max_items` items or its oldest item is
 `max_seconds` old, whichever comes first. `max_seconds` may be `math.inf` to batch by
-count only.
+count only. The [guide](https://github.com/JaviLianes8/timedbatch/blob/main/GUIDE.md)
+has the full contract: every rule, every error and how to test code that uses it.
 
 ## Iterables
 
@@ -81,8 +84,9 @@ What it promises:
 - **Failures.** Give `on_error(exc, batch)` to decide what to do with a failed batch.
   Without it, failed batches are kept and raised as a `FlushError` (with `.batches` and
   `.errors`) by the next `add`, `poll`, `flush` or `close`.
-- **Back-pressure.** `max_pending` caps items accepted but not yet delivered. `add` waits
-  for room, or raises `BatcherFull` (a `TimeoutError`) after `timeout` seconds.
+- **Back-pressure.** `max_pending` caps items accepted but not yet delivered or handed back,
+  including retained failures. `add` reports those failures before accepting a new item;
+  otherwise it waits for room, or raises `BatcherFull` (a `TimeoutError`) after `timeout` seconds.
 - **Shutdown.** `close()` (or leaving the `with` block) delivers the rest and stops the
   thread; later calls to `add` raise `BatcherClosed`. A batcher you forget to close, or
   whose `close(timeout=...)` timed out, is closed when the interpreter exits normally,
@@ -109,7 +113,7 @@ try:
     batcher.close()
 except FlushError as error:
     print(error.batches)  # [['order-1', 'order-2']]
-    print(error)  # 1 batch (2 items) failed to flush: ConnectionError('database is down')
+    print(error)  # 1 batch (2 items) failed to flush
 ```
 
 ### Deterministic tests
@@ -165,7 +169,8 @@ asyncio.run(main())
 ```
 
 `AsyncTimedBatcher` is `TimedBatcher` for one event loop, with an async flush function
-(`on_error` may be sync or async). Close it with `async with` or `await aclose()`:
+(a plain function also works and counts as delivered when it returns; `on_error` may be
+sync or async). Close it with `async with` or `await aclose()`:
 coroutines cannot run at interpreter exit. If its flush task is cancelled, for example
 because the loop ended first, the batcher closes and the next call hands back what it
 held. `TimedBatcher` refuses an `async def` flush function instead of dropping batches.
@@ -190,20 +195,42 @@ asyncio.run(main())
 # send ['d']
 ```
 
+## Errors
+
+| Exception | Raised by | Meaning |
+|---|---|---|
+| `FlushError` | `add`, `poll`, `flush`, `close`, `aclose` | Earlier batches failed; `.batches` and `.errors` hold them. From `add`, the new item was not accepted. |
+| `BatcherClosed` (a `RuntimeError`) | `add` | The batcher is closed, or its async flush task stopped. |
+| `BatcherFull` (a `TimeoutError`) | `add` | No room under `max_pending` within `timeout`. |
+| `TimeoutError` | `flush`, `close` | The sink did not finish within `timeout`. |
+| `RuntimeError` | `flush`, `poll`, `close`, `aclose` | Called from inside the flush function. |
+| `TypeError`, `ValueError` | every entry point, `timeout` arguments | A limit, a handler or a timeout is invalid; nothing was created or accepted. |
+
+Library-generated diagnostics omit item values, dynamic type names and sink exception
+text. `FlushError` reports only batch and item counts, without chaining sink exceptions
+into its traceback. Original exceptions remain in `.errors` for explicit inspection.
+Logging recovery attributes, source exceptions, callback interrupts or traceback locals
+can still expose application data.
+
 ## Why
 
-Count-based batching is everywhere (`itertools.batched`, `more-itertools` `chunked`),
-but none of it closes a batch on elapsed time. Code that ships logs, events or metrics
-almost always wants both bounds: cap the size so a batch never grows without limit, and
-cap the latency so a slow stream still drains on schedule. The hard part is the rest:
-flushing an idle buffer, not losing items when the sink fails or the program exits,
-slowing producers down when the sink falls behind. `timedbatch` does that once, with tests
-that run hundreds of random timelines against a reference model and hammer the batchers
-from many threads and tasks.
+Count-based batching is everywhere: `itertools.batched` (Python 3.12+) and
+`more-itertools` `chunked` cut an iterable into groups of `n`, but neither closes a batch
+on elapsed time. `reactivex` has `buffer_with_time_or_count`, which bounds both, but its
+timer starts when each window opens, including a new window after a count-triggered
+flush. A batch can therefore close an instant after its first item arrived, and it emits
+empty lists while the source is quiet; it also brings the observable model and its
+schedulers. Code that ships logs, events or metrics usually wants the latency bound measured from the oldest waiting item, with
+nothing sent while idle, and it needs the rest done right: flushing an idle buffer, not
+losing items when the sink fails or the program exits, slowing producers down when the
+sink falls behind. `timedbatch` does that once, with tests that run hundreds of random
+timelines against a reference model, hammer the batchers from many threads and tasks,
+and check count-only batching against CPython's own `batched`.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/JaviLianes8/timedbatch/blob/main/LICENSE).
+Changes are listed in the [changelog](https://github.com/JaviLianes8/timedbatch/blob/main/CHANGELOG.md).
 
 ## Links
 

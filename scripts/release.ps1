@@ -1,15 +1,19 @@
 # Build and upload to PyPI. Run scripts/check.ps1 first.
-# The name must not already exist on PyPI; the token is read from a secret store, never git.
+# The version must not already be on PyPI; the token is read from a secret store, never git.
 $ErrorActionPreference = "Stop"
 
-# Works on both Windows PowerShell 5.1 and pwsh 7 (generic catch, no PS7-only types).
+# Build only from a clean tree: hatchling ships every untracked, non-ignored file.
+if (git status --porcelain) { throw "The working tree is not clean. Commit or remove the changes first." }
+
+# Refuse to upload a version PyPI already has. Works on Windows PowerShell 5.1 and pwsh 7.
+$version = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
 $taken = $true
 try {
-    Invoke-WebRequest -UseBasicParsing "https://pypi.org/pypi/timedbatch/json" | Out-Null
+    Invoke-WebRequest -UseBasicParsing "https://pypi.org/pypi/timedbatch/$version/json" | Out-Null
 } catch {
     if ($_.Exception.Response.StatusCode.value__ -eq 404) { $taken = $false } else { throw }
 }
-if ($taken) { throw "The name 'timedbatch' already exists on PyPI. Choose another before publishing." }
+if ($taken) { throw "timedbatch $version is already on PyPI. Bump the version first." }
 
 $token = $env:PYPI_TOKEN
 if (-not $token -and (Test-Path "C:\secrets\pypi-token.txt")) {

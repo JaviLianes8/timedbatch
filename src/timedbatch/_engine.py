@@ -45,19 +45,21 @@ class Engine(Generic[T]):
 
     def _wait_for_room(self, timeout: float | None, inside: bool) -> None:
         limit = self._max_pending
-        if limit is None or self._accepted - self._done < limit:
+        if limit is None or self._accepted - self._done + self._ledger.pending < limit:
             return
         if inside:
             raise BatcherFull("add() inside the flush callback cannot wait for room")
         # Waiting uses the real clock: the injected one only measures batch age.
         deadline = None if timeout is None else time.monotonic() + timeout
-        while self._accepted - self._done >= limit:
+        while self._accepted - self._done + self._ledger.pending >= limit:
+            self._ledger.raise_any()
             left = None if deadline is None else deadline - time.monotonic()
             if left is not None and left <= 0:
                 raise BatcherFull(f"no room under max_pending={limit} within {timeout} seconds")
             self._progress.wait(_bounded(left))
             if self._closed:
                 raise BatcherClosed("the batcher closed while add() was waiting")
+            self._ledger.raise_any()
 
     def _wait_until_done(self, target: int, timeout: float | None) -> None:
         deadline = None if timeout is None else time.monotonic() + timeout

@@ -5,20 +5,18 @@ import pickle
 from timedbatch import BatcherClosed, BatcherFull, FlushError
 
 
-def test_flush_error_carries_batches_errors_and_cause() -> None:
+def test_flush_error_carries_batches_and_errors_without_chaining() -> None:
     boom = ValueError("boom")
     error = FlushError([[1, 2], [3]], [boom, KeyError("k")])
 
     assert error.batches == [[1, 2], [3]]
     assert error.errors[0] is boom
-    assert error.__cause__ is boom
-    assert str(error) == "2 batches (3 items) failed to flush: ValueError('boom')"
+    assert error.__cause__ is None
+    assert str(error) == "2 batches (3 items) failed to flush"
 
 
 def test_flush_error_message_for_one_batch() -> None:
-    assert str(FlushError([[1]], [OSError("x")])) == (
-        "1 batch (1 item) failed to flush: OSError('x')"
-    )
+    assert str(FlushError([[1]], [OSError("x")])) == ("1 batch (1 item) failed to flush")
 
 
 def test_flush_error_survives_pickling() -> None:
